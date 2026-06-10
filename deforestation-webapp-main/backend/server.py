@@ -111,6 +111,7 @@ async def startup():
     await db.forest_events.create_index("country")
     await db.forest_events.create_index("source_id")
     await db.forest_events.create_index("detected_at")
+    await db.forest_events.create_index("metadata.dedupe_key", sparse=True)
     # 2dsphere index powers $nearSphere and $geoWithin queries
     await db.forest_events.create_index([("location", "2dsphere")])
     await db.notifications.create_index("recipient_user_id")

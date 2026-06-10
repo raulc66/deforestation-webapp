@@ -21,6 +21,7 @@ class ImportJob(BaseDocument):
     status: ImportStatus = "pending"
     total_rows: int = 0
     success_count: int = 0
+    skipped_count: int = 0
     error_count: int = 0
     errors: list[ImportError] = Field(default_factory=list)
     triggered_by_user_id: str | None = None
@@ -36,6 +37,7 @@ class ImportJobPublic(BaseModel):
     status: ImportStatus
     total_rows: int
     success_count: int
+    skipped_count: int = 0
     error_count: int
     errors: list[ImportError]
     triggered_by_user_id: str | None

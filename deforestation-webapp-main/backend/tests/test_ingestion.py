@@ -411,6 +411,105 @@ class TestStatusEndpoints:
         assert r.status_code == 404
 
 
+class TestDeduplication:
+    def test_duplicate_rows_in_same_file_skipped(self, admin_session, csv_source_id):
+        row = _row(
+            title="TEST_dedupe_same_file",
+            lat=-8.111111,
+            lng=-55.222222,
+            detected_at="2026-02-01T08:00:00Z",
+        )
+        body = _csv([row, row])
+        r = _upload(admin_session, body, "dedupe_same.csv", source_id=csv_source_id)
+        assert r.status_code == 200, r.text
+        job = r.json()
+        try:
+            assert job["status"] == "completed"
+            assert job["total_rows"] == 2
+            assert job["success_count"] == 1
+            assert job["skipped_count"] == 1
+            assert job["error_count"] == 0
+
+            r2 = admin_session.get(f"{API}/events", params={"limit": 200}, timeout=15)
+            evs = [
+                e
+                for e in r2.json()
+                if (e.get("metadata") or {}).get("import_job_id") == job["id"]
+            ]
+            assert len(evs) == 1
+            assert (evs[0].get("metadata") or {}).get("dedupe_key")
+        finally:
+            _cleanup_events(admin_session, job["id"])
+
+    def test_reimport_same_csv_all_skipped(self, admin_session, csv_source_id):
+        row = _row(
+            title="TEST_dedupe_reimport",
+            lat=-9.333333,
+            lng=-56.444444,
+            detected_at="2026-02-02T09:30:00Z",
+        )
+        body = _csv([row])
+        first = _upload(admin_session, body, "dedupe_first.csv", source_id=csv_source_id)
+        assert first.status_code == 200, first.text
+        job1 = first.json()
+        try:
+            assert job1["success_count"] == 1
+            assert job1.get("skipped_count", 0) == 0
+
+            second = _upload(admin_session, body, "dedupe_second.csv", source_id=csv_source_id)
+            assert second.status_code == 200, second.text
+            job2 = second.json()
+            assert job2["status"] == "completed"
+            assert job2["success_count"] == 0
+            assert job2["skipped_count"] == 1
+            assert job2["error_count"] == 0
+
+            r2 = admin_session.get(f"{API}/events", params={"limit": 200}, timeout=15)
+            evs = [
+                e
+                for e in r2.json()
+                if e.get("title") == "TEST_dedupe_reimport"
+            ]
+            assert len(evs) == 1
+        finally:
+            _cleanup_events(admin_session, job1["id"])
+            if "job2" in locals():
+                _cleanup_events(admin_session, job2["id"])
+
+    def test_mixed_new_duplicate_and_error_is_partial(self, admin_session, csv_source_id):
+        good = _row(
+            title="TEST_dedupe_mix_ok",
+            lat=-10.555555,
+            lng=-57.666666,
+            detected_at="2026-02-03T10:00:00Z",
+        )
+        dup = _row(
+            title="TEST_dedupe_mix_dup",
+            lat=-10.555555,
+            lng=-57.666666,
+            detected_at="2026-02-03T10:00:00Z",
+        )
+        bad = _row(
+            title="TEST_dedupe_mix_bad",
+            lat=-11.0,
+            lng=-58.0,
+            sev="not_a_severity",
+            detected_at="2026-02-03T11:00:00Z",
+        )
+        body = _csv([good, dup, bad])
+        r = _upload(admin_session, body, "dedupe_mix.csv", source_id=csv_source_id)
+        assert r.status_code == 200, r.text
+        job = r.json()
+        try:
+            assert job["status"] == "partial"
+            assert job["total_rows"] == 3
+            assert job["success_count"] == 1
+            assert job["skipped_count"] == 1
+            assert job["error_count"] == 1
+        finally:
+            _cleanup_events(admin_session, job["id"])
+
+
 # -- Smoke: prior endpoints still work -------------------------------------- #
 class TestRegressionSmoke:
     def test_events_listing(self, admin_session):

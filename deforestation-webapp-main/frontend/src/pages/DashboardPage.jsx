@@ -1,13 +1,10 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "@/lib/api";
 import AppLayout from "@/components/layout/AppLayout";
+import AnalyticsSection from "@/components/dashboard/AnalyticsSection";
 import { useAuth } from "@/context/AuthContext";
 import {
-  AlertOctagon,
-  Activity,
-  TreePine,
-  Globe2,
   ArrowUpRight,
   Cpu,
   Bell,
@@ -16,13 +13,6 @@ import {
   Bug,
   Satellite,
 } from "lucide-react";
-
-const severityColor = {
-  low: "#e9c46a",
-  medium: "#f4a261",
-  high: "#e76f51",
-  critical: "#9b2226",
-};
 
 const placeholderModules = [
   {
@@ -63,43 +53,32 @@ const placeholderModules = [
   },
 ];
 
-function Stat({ label, value, accent, icon: Icon, sub }) {
-  return (
-    <div className="card-flat" data-testid={`stat-${label.toLowerCase().replace(/\s+/g, "-")}`}>
-      <div className="flex items-start justify-between">
-        <div className="label-eyebrow">{label}</div>
-        <Icon className="w-4 h-4 text-[#7b827b]" strokeWidth={1.5} />
-      </div>
-      <div
-        className="font-bold text-4xl mt-3 tracking-tight"
-        style={{ color: accent || "#1a1e1a" }}
-      >
-        {value}
-      </div>
-      {sub && <div className="text-xs text-[#7b827b] mt-1.5">{sub}</div>}
-    </div>
-  );
-}
-
 export default function DashboardPage() {
   const { user } = useAuth();
-  const [stats, setStats] = useState(null);
+  const [overview, setOverview] = useState(null);
   const [alerts, setAlerts] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [alertsLoading, setAlertsLoading] = useState(true);
+  const [alertsError, setAlertsError] = useState(null);
+
+  const handleOverviewLoaded = useCallback((nextOverview) => {
+    setOverview(nextOverview);
+  }, []);
 
   useEffect(() => {
     let alive = true;
     (async () => {
+      setAlertsLoading(true);
+      setAlertsError(null);
       try {
-        const [s, a] = await Promise.all([
-          api.get("/alerts/stats"),
-          api.get("/alerts?limit=8"),
-        ]);
-        if (!alive) return;
-        setStats(s.data);
-        setAlerts(a.data);
+        const { data } = await api.get("/alerts?limit=8");
+        if (alive) setAlerts(data);
+      } catch {
+        if (alive) {
+          setAlertsError("Could not load recent activity.");
+          setAlerts([]);
+        }
       } finally {
-        if (alive) setLoading(false);
+        if (alive) setAlertsLoading(false);
       }
     })();
     return () => {
@@ -107,12 +86,9 @@ export default function DashboardPage() {
     };
   }, []);
 
-  const total = stats?.total_alerts ?? 0;
-  const totalArea = stats?.total_area_ha ?? 0;
-  const sev = stats?.by_severity || {};
-  const criticalCount = sev.critical?.count ?? 0;
-  const highCount = sev.high?.count ?? 0;
-  const activeRate = total ? Math.round(((criticalCount + highCount) / total) * 100) : 0;
+  const totalEvents = overview?.total_events;
+  const headerCount =
+    totalEvents != null ? totalEvents : alertsLoading ? "…" : alerts.length;
 
   return (
     <AppLayout>
@@ -126,8 +102,9 @@ export default function DashboardPage() {
                 Welcome, {user?.name?.split(" ")[0] || "Watcher"}.
               </h1>
               <p className="text-[#4a524a] mt-3 max-w-xl">
-                You are monitoring {total} active deforestation events across {Object.keys(sev).length}{" "}
-                severity tiers.
+                {overview
+                  ? `Monitoring ${overview.total_events} forest events · ${overview.total_area_affected.toLocaleString()} ha tracked.`
+                  : `Loading platform overview…`}
               </p>
             </div>
             <Link
@@ -140,74 +117,9 @@ export default function DashboardPage() {
             </Link>
           </div>
 
-          {/* Stats grid */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6 mb-12">
-            <Stat
-              label="Total alerts"
-              value={loading ? "—" : total}
-              icon={AlertOctagon}
-              sub="across all regions"
-            />
-            <Stat
-              label="Area affected"
-              value={loading ? "—" : `${totalArea.toLocaleString()} ha`}
-              icon={TreePine}
-              sub="hectares logged"
-            />
-            <Stat
-              label="Critical+High"
-              value={loading ? "—" : criticalCount + highCount}
-              accent="#9b2226"
-              icon={Activity}
-              sub={`${activeRate}% of total volume`}
-            />
-            <Stat
-              label="Regions watched"
-              value={loading ? "—" : new Set(alerts.map((a) => a.country)).size}
-              icon={Globe2}
-              sub="countries with active alerts"
-            />
-          </div>
+          <AnalyticsSection onOverviewLoaded={handleOverviewLoaded} />
 
-          {/* Severity bar */}
-          <div className="card-flat mb-12" data-testid="severity-distribution">
-            <div className="flex items-center justify-between mb-5">
-              <div>
-                <div className="label-eyebrow">Severity distribution</div>
-                <div className="text-xl font-semibold mt-1">
-                  {total} alerts · {totalArea.toLocaleString()} ha total
-                </div>
-              </div>
-            </div>
-            <div className="flex h-3 rounded-full overflow-hidden bg-[#eaece6]">
-              {["low", "medium", "high", "critical"].map((k) => {
-                const v = sev[k]?.count ?? 0;
-                const pct = total ? (v / total) * 100 : 0;
-                return (
-                  <div
-                    key={k}
-                    className="h-full"
-                    style={{ width: `${pct}%`, background: severityColor[k] }}
-                    title={`${k}: ${v}`}
-                  />
-                );
-              })}
-            </div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-5">
-              {["low", "medium", "high", "critical"].map((k) => (
-                <div key={k} className="flex items-center gap-2 text-sm">
-                  <span
-                    className="severity-dot"
-                    style={{ background: severityColor[k] }}
-                  />
-                  <span className="capitalize text-[#4a524a]">{k}</span>
-                  <span className="ml-auto font-semibold">{sev[k]?.count ?? 0}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Recent activity */}
+          {/* Recent activity — legacy alerts feed for map-compatible rows */}
           <div className="mb-12">
             <div className="flex items-center justify-between mb-5">
               <div>
@@ -215,6 +127,9 @@ export default function DashboardPage() {
                 <h2 className="text-2xl font-semibold tracking-tight mt-1">
                   Newest detections
                 </h2>
+                <p className="text-sm text-[#7b827b] mt-1">
+                  {headerCount} events in the system
+                </p>
               </div>
               <Link
                 to="/map"
@@ -224,6 +139,16 @@ export default function DashboardPage() {
                 View all on map →
               </Link>
             </div>
+
+            {alertsError && (
+              <div
+                className="mb-4 px-4 py-3 rounded-md border border-[#e76f51]/30 bg-[#e76f51]/5 text-sm text-[#9b2226]"
+                role="alert"
+              >
+                {alertsError}
+              </div>
+            )}
+
             <div className="bg-white border border-[#eaece6] rounded-lg overflow-hidden">
               <table className="w-full text-sm" data-testid="recent-alerts-table">
                 <thead className="bg-[#f4f5f2] text-[#7b827b]">
@@ -242,14 +167,14 @@ export default function DashboardPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {loading && (
+                  {alertsLoading && (
                     <tr>
                       <td colSpan={5} className="px-5 py-6 text-center text-[#7b827b]">
                         Loading alerts…
                       </td>
                     </tr>
                   )}
-                  {!loading &&
+                  {!alertsLoading &&
                     alerts.map((a) => (
                       <tr
                         key={a.id}
@@ -266,7 +191,15 @@ export default function DashboardPage() {
                           <span className="inline-flex items-center gap-2 text-xs uppercase tracking-wider font-semibold">
                             <span
                               className="severity-dot"
-                              style={{ background: severityColor[a.severity] }}
+                              style={{
+                                background:
+                                  {
+                                    low: "#e9c46a",
+                                    medium: "#f4a261",
+                                    high: "#e76f51",
+                                    critical: "#9b2226",
+                                  }[a.severity] || "#7b827b",
+                              }}
                             />
                             {a.severity}
                           </span>
@@ -279,6 +212,13 @@ export default function DashboardPage() {
                         </td>
                       </tr>
                     ))}
+                  {!alertsLoading && !alertsError && alerts.length === 0 && (
+                    <tr>
+                      <td colSpan={5} className="px-5 py-6 text-center text-[#7b827b]">
+                        No recent detections.
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>

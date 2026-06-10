@@ -18,9 +18,11 @@ from app.core.errors import AppError, NotFoundError
 from app.models.forest_event import ForestEventCreate
 from app.models.import_job import ImportError as ImportErrorModel, ImportJob, ImportJobPublic
 from app.repositories.data_source_repository import DataSourceRepository
+from app.repositories.forest_event_repository import ForestEventRepository
 from app.repositories.import_job_repository import ImportJobRepository
 from app.services.forest_event_service import ForestEventService
 
+from .persist import persist_import_event
 from .validation import RowError, validate_header, validate_row
 
 logger = logging.getLogger("forestwatch.ingestion.csv")
@@ -37,6 +39,7 @@ def _to_public(job: ImportJob) -> ImportJobPublic:
         status=job.status,
         total_rows=job.total_rows,
         success_count=job.success_count,
+        skipped_count=job.skipped_count,
         error_count=job.error_count,
         errors=job.errors,
         triggered_by_user_id=job.triggered_by_user_id,
@@ -52,10 +55,12 @@ class CsvImporter:
         jobs_repo: ImportJobRepository,
         sources_repo: DataSourceRepository,
         events_service: ForestEventService,
+        events_repo: ForestEventRepository,
     ):
         self.jobs = jobs_repo
         self.sources = sources_repo
         self.events = events_service
+        self.events_repo = events_repo
 
     async def _resolve_default_source_id(self) -> str:
         """If the uploader doesn't pass a source_id, pick the first DataSource
@@ -131,6 +136,8 @@ class CsvImporter:
         # Process rows
         errors: list[ImportErrorModel] = []
         success = 0
+        skipped = 0
+        seen_keys: set[str] = set()
         total = 0
         for idx, raw_row in enumerate(reader, start=2):  # row 1 = header
             total += 1
@@ -162,8 +169,16 @@ class CsvImporter:
                     detected_at=parsed.detected_at,
                     metadata={"imported_from": filename, "import_job_id": job.id},
                 )
-                await self.events.create_event(payload)
-                success += 1
+                outcome = await persist_import_event(
+                    self.events,
+                    self.events_repo,
+                    payload,
+                    seen_keys=seen_keys,
+                )
+                if outcome == "created":
+                    success += 1
+                else:
+                    skipped += 1
             except Exception as e:  # noqa: BLE001 — surface as row error
                 logger.exception("Row %d failed to persist", idx)
                 errors.append(
@@ -177,7 +192,7 @@ class CsvImporter:
 
         # Finalize
         duration_ms = int((time.perf_counter() - started_at) * 1000)
-        if success == 0:
+        if success == 0 and skipped == 0:
             final_status = "failed"
         elif errors:
             final_status = "partial"
@@ -190,6 +205,7 @@ class CsvImporter:
                 "status": final_status,
                 "total_rows": total,
                 "success_count": success,
+                "skipped_count": skipped,
                 "error_count": len(errors),
                 "errors": [e.model_dump() for e in errors],
                 "completed_at": datetime.now(timezone.utc),
@@ -197,8 +213,8 @@ class CsvImporter:
             },
         )
         logger.info(
-            "Import %s: %s (%d ok / %d errors / %d total)",
-            job.id, final_status, success, len(errors), total,
+            "Import %s: %s (%d ok / %d skipped / %d errors / %d total)",
+            job.id, final_status, success, skipped, len(errors), total,
         )
         return await self._reload(job.id)
 

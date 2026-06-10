@@ -89,8 +89,9 @@ def csv_importer_dep(
     jobs: ImportJobRepository = Depends(import_job_repo_dep),
     sources: DataSourceRepository = Depends(data_source_repo_dep),
     events: ForestEventService = Depends(forest_event_service_dep),
+    events_repo: ForestEventRepository = Depends(forest_event_repo_dep),
 ) -> CsvImporter:
-    return CsvImporter(jobs, sources, events)
+    return CsvImporter(jobs, sources, events, events_repo)
 
 
 def analytics_repo_dep(
