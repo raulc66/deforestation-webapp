@@ -1,0 +1,103 @@
+{
+  "theme": "light",
+  "archetype": "1_organic_earthy",
+  "mood": "Grounded, precise, authoritative, natural",
+  "colors": {
+    "background": {
+      "default": "#F4F5F2",
+      "paper": "#FFFFFF",
+      "subtle": "#EAECE6"
+    },
+    "text": {
+      "primary": "#1A1E1A",
+      "secondary": "#4A524A",
+      "muted": "#7B827B"
+    },
+    "brand": {
+      "primary": "#2D5A27",
+      "primary_hover": "#21421D",
+      "secondary": "#839788",
+      "accent": "#C84B31",
+      "accent_hover": "#A63D27"
+    },
+    "severity": {
+      "low": "#E9C46A",
+      "medium": "#F4A261",
+      "high": "#E76F51",
+      "critical": "#9B2226"
+    }
+  },
+  "typography": {
+    "fonts": {
+      "heading": "Manrope",
+      "body": "IBM Plex Sans",
+      "mono": "IBM Plex Mono"
+    },
+    "scale": {
+      "h1": "text-4xl sm:text-5xl tracking-tight font-bold",
+      "h2": "text-2xl sm:text-3xl tracking-tight font-semibold",
+      "h3": "text-xl sm:text-2xl tracking-tight font-semibold",
+      "h4": "text-lg sm:text-xl font-medium",
+      "body": "text-base leading-relaxed",
+      "small": "text-sm",
+      "label": "text-xs tracking-[0.2em] uppercase font-bold"
+    }
+  },
+  "components": {
+    "cards": {
+      "style": "flat",
+      "border": "1px solid #EAECE6",
+      "border_radius": "rounded-lg",
+      "shadow": "shadow-none hover:shadow-sm hover:-translate-y-0.5 transition-all duration-200",
+      "padding": "p-6"
+    },
+    "buttons": {
+      "primary": "bg-[#2D5A27] text-white hover:bg-[#21421D] px-6 py-2 rounded-md font-medium transition-colors",
+      "secondary": "bg-transparent border border-[#EAECE6] text-[#1A1E1A] hover:bg-[#EAECE6] px-6 py-2 rounded-md font-medium transition-colors"
+    },
+    "glassmorphism": {
+      "map_controls": "bg-white/80 backdrop-blur-xl backdrop-saturate-150 border border-white/40 shadow-sm rounded-lg"
+    }
+  },
+  "layout": {
+    "dashboard_grid": "grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6",
+    "spacing": "generous",
+    "navigation": "sidebar layout for desktop, hamburger for mobile. Sidebar bg: #FFFFFF, border-r: 1px solid #EAECE6."
+  },
+  "media": {
+    "images": {
+      "logo": {
+        "url": "https://images.pexels.com/photos/8255093/pexels-photo-8255093.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+        "description": "Minimalist fern leaf on white background for brand logo"
+      },
+      "login_background": {
+        "url": "https://images.unsplash.com/photo-1759681770982-313332e7f42c?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2Njl8MHwxfHNlYXJjaHwzfHxzYXRlbGxpdGUlMjB2aWV3JTIwZm9yZXN0fGVufDB8fHx8MTc4MDc3NjU1Nnww&ixlib=rb-4.1.0&q=85",
+        "description": "Aerial view of a dense forest with autumn foliage"
+      },
+      "placeholder_cards": {
+        "satellite": "https://images.unsplash.com/photo-1476231682828-37e571bc172f?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2Njl8MHwxfHNlYXJjaHwxfHxzYXRlbGxpdGUlMjB2aWV3JTIwZm9yZXN0fGVufDB8fHx8MTc4MDc3NjU1Nnww&ixlib=rb-4.1.0&q=85",
+        "deforestation": "https://images.pexels.com/photos/13402522/pexels-photo-13402522.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940"
+      }
+    }
+  },
+  "icons": {
+    "library": "lucide-react",
+    "usage": "Use icons sparsely. Default stroke-width 1.5 for a sophisticated look."
+  },
+  "testing": {
+    "attributes": "All interactive elements MUST include `data-testid` (e.g., `data-testid=\"login-submit-button\"`)"
+  },
+  "instructions_to_main_agent": [
+    "Use Light Theme (Archetype 1: Organic & Earthy).",
+    "Fonts: Manrope (Headings), IBM Plex Sans (Body).",
+    "Use 'Control Room Grid' for the dashboard (dense, clear, cardless or 1px border with no heavy drop shadows).",
+    "Never use generic 'SaaS blue'. Rely on Moss Green, Charcoal, and Off-White.",
+    "Implement full authentication flow (Login/Signup, Google Auth).",
+    "Dashboard must display overview stats: total alerts, forest area monitored, deforestation rate, recent activity.",
+    "Interactive map (Leaflet) must use severity colors (low, medium, high, critical) defined in the palette.",
+    "Map controls/overlays should use 'Crystal Glassmorphism' (backdrop-blur-xl, bg-white/80, 1px white border).",
+    "Include placeholder cards for Data Ingestion, Scraping, Satellite, Alerting, Analytics, AI Predictions as 'Coming Soon'.",
+    "All interactive elements MUST have `data-testid` attributes.",
+    "File extensions are .js, not .tsx. Use standard Shadcn UI components for complex logic but customize their styles to match the guidelines."
+  ]
+}

@@ -1,0 +1,43 @@
+{
+  "summary": "Iteration 3 - validated the new DataSource domain and its FK relationship to ForestEvent. 40/40 pytest backend tests passed (28 carried over from iter2 + 12 new). New coverage: DataSource CRUD (/api/data-sources GET/POST/PATCH/DELETE), /types catalogue exactly {csv,api,satellite,scraper,manual}, list filters ?type=satellite and ?status=paused (Sentinel Hub NDVI), 409 on duplicate name, 422 on invalid type, 404 on missing id, PATCH bumps updated_at while preserving created_at. Integration: all 20 seeded ForestEvents reference real DataSource ids; GET /api/events returns joined source_name matching DataSource.name; /api/events?source_id filter works; POST /api/events with a real source_id returns the joined source_name; legacy /api/alerts.source now exposes the human DataSource NAME (verified all 20 alerts map to one of the 6 demo names). Frontend smoke: admin login -> dashboard renders 20 alerts (severity 5/5/6/4, 4841.6 ha, 8 countries) and the legacy /api/alerts shape is intact; /map renders 20/20 markers; clicking a marker shows a popup with `Source: Hansen Global Forest Change` (proving DataSource.name reaches the UI through the legacy adapter).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/data-sources", "issue": "DataSource model uses two independent default_factory=_now_iso calls for created_at and updated_at, so on create they differ by microseconds. Cosmetic only; tests adjusted to compare against captured original_updated_at instead of created_at. Consider initialising both from a single _now_iso() call inside a model_validator or in DataSourceService.create_source."},
+      {"endpoint": "GET /api/events/event-types & GET /api/data-sources/types", "issue": "Both catalogue endpoints are unauthenticated while all other /api/events and /api/data-sources routes require auth. Consistent with each other; flag only if a uniform policy is desired."},
+      {"endpoint": "GET /api/modules/{nonexistent}", "issue": "Returns 200 with not_found payload instead of 404 (pre-existing, unrelated)."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/backend_test.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "(Optional polish) In DataSource model, generate created_at/updated_at from the SAME timestamp on creation so they are byte-identical (only minor cosmetic).",
+    "(Optional) Decide a uniform auth policy for catalogue endpoints (/events/event-types, /data-sources/types).",
+    "(Optional, carry-over) Return 404 from GET /api/modules/{name} when missing."
+  ],
+  "critical_code_review_comments": [
+    "DataSourceService.seed_demo is correctly idempotent (matches by name) and returns a {name->id} map consumed by the ForestEvent seeder.",
+    "server.startup() correctly seeds DataSources BEFORE ForestEvents and re-seeds events when any forest_events.source_id is not in the current valid_source_ids set - handles upgrades from iter2 cleanly.",
+    "ForestEventService._resolve_source_map does a single $in query for the page of ids - O(1) batched join, no N+1 problem. Correctly handles non-ObjectId source_ids by filtering with ObjectId.is_valid (e.g. legacy 'pytest' string returns None for source_name without 500ing).",
+    "alert_service.py falls back to e.source_id when source_name is None (`source=e.source_name or e.source_id`) - safe for ad-hoc/test events that point at arbitrary strings.",
+    "Mongo unique index on data_sources.name + ConflictError mapping yields the expected 409 on duplicate POST (verified).",
+    "Pydantic Literal DataSourceType (csv/api/satellite/scraper/manual) correctly returns 422 on invalid values (verified).",
+    "/api/data-sources/types route is registered BEFORE /{source_id} so FastAPI doesn't try to resolve 'types' as a source id - correct route ordering, mirrors /api/events/event-types pattern.",
+    "All models exclude Mongo `_id` from public responses; legacy /api/alerts shape is fully preserved (no affected_area_ha/latitude/longitude/source_id leakage)."
+  ],
+  "updated_files": ["/app/backend/tests/backend_test.py"],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "admin@forestwatch.io / ForestAdmin2026! (seeded; verified)",
+  "seed_data_creation": "Backend startup auto-seeds: 6 DataSources (GLAD-S2 Forest Loss/satellite, Hansen Global Forest Change/csv, MapBiomas Alerta/api, InfoAmazonia News Scraper/scraper, Community Field Reports/manual, Sentinel Hub NDVI/api+paused) and 20 ForestEvents whose source_id is randomly drawn from the 6 DataSource ids. Re-seeds events if stale source_ids are detected. Tests create and cleanup their own TEST_-prefixed DataSource and ForestEvent records.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Run: cd /app/backend && python -m pytest tests/backend_test.py -v --junitxml=/app/test_reports/pytest/pytest_results.xml (40 tests, ~8s). Test classes: TestHealth, TestAuth, TestEvents, TestNotifications, TestLegacyAlerts, TestDataSources (NEW), TestEventSourceIntegration (NEW), TestModules. DataSource ids are Mongo ObjectIds (24-hex). ForestEventService._resolve_source_map uses ObjectId.is_valid so non-ObjectId source_ids (e.g. literal 'pytest') are silently skipped - tests that POST events with arbitrary source_id strings still pass but source_name will be null. Legacy /api/alerts.source field is now ALWAYS the joined DataSource.name (falling back to source_id only if join misses). Frontend map popup confirmed via Playwright to display human DataSource names.",
+  "rca_of_the_issue": "N/A - no bugs found. DataSource domain is correctly implemented end-to-end. The seed flow (DataSources first -> capture ids -> seed ForestEvents from that id pool) plus the stale-source detection in startup() makes the refactor safe across upgrades. Backend join via _resolve_source_map and legacy adapter ensure both new (/api/events with source_name) and old (/api/alerts with source=name) consumers stay correct."
+}

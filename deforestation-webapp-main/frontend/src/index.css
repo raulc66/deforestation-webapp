@@ -1,0 +1,156 @@
+/* ForestWatch global styles - Organic & Earthy theme */
+@import url("https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=IBM+Plex+Sans:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+    /* Brand palette */
+    --bg-default: #f4f5f2;
+    --bg-paper: #ffffff;
+    --bg-subtle: #eaece6;
+
+    --text-primary: #1a1e1a;
+    --text-secondary: #4a524a;
+    --text-muted: #7b827b;
+
+    --brand-primary: #2d5a27;
+    --brand-primary-hover: #21421d;
+    --brand-secondary: #839788;
+    --brand-accent: #c84b31;
+    --brand-accent-hover: #a63d27;
+
+    --sev-low: #e9c46a;
+    --sev-medium: #f4a261;
+    --sev-high: #e76f51;
+    --sev-critical: #9b2226;
+
+    /* Shadcn HSL bridges */
+    --background: 80 12% 95%;
+    --foreground: 120 9% 11%;
+    --card: 0 0% 100%;
+    --card-foreground: 120 9% 11%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 120 9% 11%;
+    --primary: 115 39% 25%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 80 9% 91%;
+    --secondary-foreground: 120 9% 11%;
+    --muted: 80 9% 91%;
+    --muted-foreground: 120 4% 50%;
+    --accent: 11 60% 49%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 357 65% 37%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 84 9% 91%;
+    --input: 84 9% 91%;
+    --ring: 115 39% 25%;
+    --radius: 0.5rem;
+}
+
+* {
+    border-color: hsl(var(--border));
+}
+
+html,
+body,
+#root {
+    height: 100%;
+}
+
+body {
+    margin: 0;
+    background-color: var(--bg-default);
+    color: var(--text-primary);
+    font-family: "IBM Plex Sans", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5 {
+    font-family: "Manrope", system-ui, sans-serif;
+    letter-spacing: -0.01em;
+}
+
+.font-mono,
+code {
+    font-family: "IBM Plex Mono", monospace;
+}
+
+/* Utility helpers */
+.label-eyebrow {
+    font-size: 0.7rem;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    font-weight: 700;
+    color: var(--text-muted);
+}
+
+.card-flat {
+    background: var(--bg-paper);
+    border: 1px solid var(--bg-subtle);
+    border-radius: 0.5rem;
+    padding: 1.5rem;
+    transition:
+        transform 0.2s ease,
+        box-shadow 0.2s ease;
+}
+
+.card-flat:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 24px -12px rgba(26, 30, 26, 0.18);
+}
+
+.glass {
+    background: rgba(255, 255, 255, 0.82);
+    backdrop-filter: blur(20px) saturate(150%);
+    -webkit-backdrop-filter: blur(20px) saturate(150%);
+    border: 1px solid rgba(255, 255, 255, 0.55);
+}
+
+/* Leaflet container fix - default size */
+.leaflet-container {
+    width: 100%;
+    height: 100%;
+    background: #f4f5f2 !important;
+    font-family: "IBM Plex Sans", sans-serif !important;
+}
+
+.severity-dot {
+    width: 0.625rem;
+    height: 0.625rem;
+    border-radius: 9999px;
+    display: inline-block;
+}
+
+/* Subtle background texture */
+.bg-grain {
+    background-image:
+        radial-gradient(
+            circle at 1px 1px,
+            rgba(26, 30, 26, 0.04) 1px,
+            transparent 0
+        );
+    background-size: 24px 24px;
+}
+
+/* Auth bg */
+.auth-shell {
+    background:
+        radial-gradient(
+            1200px 600px at 80% -10%,
+            rgba(45, 90, 39, 0.18),
+            transparent 60%
+        ),
+        radial-gradient(
+            900px 500px at 10% 110%,
+            rgba(131, 151, 136, 0.18),
+            transparent 60%
+        ),
+        var(--bg-default);
+}

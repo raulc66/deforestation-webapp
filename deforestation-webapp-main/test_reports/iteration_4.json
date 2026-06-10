@@ -1,0 +1,41 @@
+{
+  "summary": "Iteration 4 - validated the datetime refactor (BSON datetime + tz-aware UTC) and the two NEW endpoints /api/events/recent and /api/events/range. 62/62 pytest backend tests pass (40 carried over from iter3 + 22 new). New coverage: TestDatetimeRefactor (7 tests asserting tz-aware ISO 8601 ending in Z or +00:00 across events.detected_at, events/{id}.detected_at, data-sources.{created_at,updated_at}, notifications.created_at, auth/me.created_at, alerts.detected_at, plus monotonic DESC sort on /api/events). TestEventsRecent (5 tests: unauth=401, default days=7 with cutoff check, days=30>=days=7, days=0->422, days=400->422). TestEventsRange (5 tests: unauth=401, inclusive interval + DESC sort, accepts both Z and +00:00, start>end->400 with detail 'start must be earlier...' and code 'invalid_range'). TestRouteOrdering (4 tests proving /recent /range /stats /event-types are not shadowed by /{event_id}). TestEventDatetimeRoundTrip (POST with detected_at='2026-06-15T12:34:56Z' -> exact round-trip via GET, then PATCH to '2026-06-20T08:00:00Z' -> persisted). Migration log on startup: 'Migrated 7 users.created_at + 7 data_sources.created_at + 7 data_sources.updated_at + 20 forest_events.detected_at = 41 fields'; second restart produced ZERO 'Migrated' log lines confirming idempotency. Frontend smoke: admin login -> dashboard renders 20 events with M/D/YYYY dates ('6/7/2026', '6/6/2026', ...) sorted DESC; severity distribution 5/5/6/4 = 20, total 4,841.6 ha, 8 countries; /map shows '20 of 20 alerts visible' with markers in Brazil/Peru/USA/Indonesia/Russia/etc.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "BSON datetime precision", "issue": "MongoDB BSON datetime is ms-precision so the in-memory Python microsecond value gets truncated on persist (e.g. POST returns '...374771Z' but a subsequent GET returns '...374000Z'). This is inherent to BSON and not a bug; tests now compare via datetime parsing with sub-ms tolerance instead of raw string equality."},
+      {"endpoint": "GET /api/data-sources/types & /api/events/event-types", "issue": "Still unauthenticated (carry-over from iter3) while the rest of those routers require auth - flag only if uniform policy is desired."},
+      {"endpoint": "GET /api/modules/{nonexistent}", "issue": "Carry-over: returns 200 with not_found payload instead of 404."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/backend_test.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "(Optional) Consider whether the catalogue endpoints (/events/event-types, /data-sources/types) should require auth for consistency.",
+    "(Optional, carry-over) Return 404 from GET /api/modules/{name} when missing."
+  ],
+  "critical_code_review_comments": [
+    "Route ordering verified: /api/events/event-types, /stats, /recent, /range are all registered BEFORE /{event_id} - confirmed by 4 dedicated route-ordering tests.",
+    "ForestEventService.list_in_range correctly applies ensure_utc on both inputs and raises AppError(status=400, code='invalid_range') when start>end - matches the contract exactly.",
+    "Pydantic Query type `datetime` on /range params correctly accepts both 'Z' and '+00:00' formats (URL-encoded). Note: clients MUST URL-encode the '+' (or use requests' params=) otherwise FastAPI receives it as a space and 422s - this is standard HTTP, not a bug, but worth documenting.",
+    "migrations.py is idempotent by design (filters for $type:string) and only logs Migrated lines when updated>0 - confirmed by second-startup producing zero log lines.",
+    "Motor opened with tz_aware=True (core/database.py) so all reads return tz-aware UTC datetimes; combined with Pydantic v2 auto-ISO serialization yields the expected Z-suffixed strings in JSON.",
+    "BaseDocument.to_mongo using mode='python' is the right call - it preserves datetime objects (instead of pre-serializing to ISO strings) so BSON stores them natively, which is what unlocks the $gte/$lte range queries and DESC sort.",
+    "Frontend continues to work unchanged: new Date(iso_string).toLocaleDateString() renders '6/7/2026' correctly because Pydantic emits 'Z'-suffixed ISO strings that JS Date parses cleanly."
+  ],
+  "updated_files": ["/app/backend/tests/backend_test.py"],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "admin@forestwatch.io / ForestAdmin2026! (seeded; verified)",
+  "seed_data_creation": "Backend startup migrates legacy string datetimes (41 fields), then seeds 6 DataSources + 20 ForestEvents (idempotent). Tests create+cleanup their own TEST_-prefixed records.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Run: cd /app/backend && python -m pytest tests/backend_test.py -v --junitxml=/app/test_reports/pytest/pytest_results.xml (62 tests, ~12s). New test classes added in iter4: TestDatetimeRefactor, TestEventsRecent, TestEventsRange, TestRouteOrdering, TestEventDatetimeRoundTrip. Helper functions _parse_iso() and _assert_tz_aware_utc() at top of file. KEY GOTCHA: when testing /api/events/range with '+00:00' format, use requests' params= argument (or URL-encode the '+'), otherwise it is decoded as a space and you get 422. The old TestDataSources.test_create_get_update_delete_and_duplicate now compares datetime objects (not raw strings) because BSON ms-truncates Python microseconds.",
+  "rca_of_the_issue": "N/A - no bugs found. Datetime refactor is correctly implemented end-to-end: Motor tz_aware=True + BaseDocument.to_mongo(mode='python') + Pydantic v2 default ISO serialization + idempotent string->datetime migration + route ordering with static routes before /{id}. The single test that needed updating (DataSources updated_at vs created_at string equality) was a test artifact, not a regression - BSON's ms precision is a property of the storage layer, not a bug in the refactor."
+}
