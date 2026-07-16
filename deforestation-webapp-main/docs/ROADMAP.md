@@ -4,6 +4,13 @@
 
 This roadmap replaces earlier checklists at the repository root. Completed work is marked ✓. Future work is grouped by **priority** (P0–P3) and **phase**.
 
+> **Scope:** This document is the **product and feature delivery roadmap**. The
+> **architectural evolution roadmap** — architecture phases, engine generalization, and
+> planned architecture versions — is canonical and lives in
+> `docs/architecture/08-roadmap.md` and `docs/architecture/CHANGELOG.md`. Where feature
+> work below touches architectural concepts (provider framework, detectors, spatial
+> datasets, multi-tenancy), the canonical architecture documents govern the design.
+
 ---
 
 ## Completed — Phase 1: Core Platform ✓

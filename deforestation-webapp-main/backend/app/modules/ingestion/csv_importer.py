@@ -15,6 +15,8 @@ import time
 from datetime import datetime, timezone
 
 from app.core.errors import AppError, NotFoundError
+from app.core.geography.romania import is_romania_event
+from app.core.ingestion.ingestion_metadata import build_ingestion_metadata
 from app.models.forest_event import ForestEventCreate
 from app.models.import_job import ImportError as ImportErrorModel, ImportJob, ImportJobPublic
 from app.repositories.data_source_repository import DataSourceRepository
@@ -155,6 +157,20 @@ class CsvImporter:
                 errors.extend(_to_model_errors(row_errors))
                 continue
             try:
+                csv_confidence = parsed.confidence if parsed.confidence is not None else 0.8
+                csv_romania = is_romania_event({
+                    "country": parsed.country,
+                    "region": parsed.region,
+                    "latitude": parsed.latitude,
+                    "longitude": parsed.longitude,
+                })
+                ingestion_meta = build_ingestion_metadata(
+                    source="CSV",
+                    source_event_id=f"row:{idx}",
+                    is_romania=csv_romania,
+                    confidence=csv_confidence,
+                    severity=parsed.severity,
+                )
                 payload = ForestEventCreate(
                     title=parsed.title,
                     country=parsed.country,
@@ -164,10 +180,14 @@ class CsvImporter:
                     event_type=parsed.event_type,
                     severity=parsed.severity,
                     affected_area_ha=parsed.affected_area_ha,
-                    confidence=parsed.confidence if parsed.confidence is not None else 0.8,
+                    confidence=csv_confidence,
                     source_id=resolved_source_id,
                     detected_at=parsed.detected_at,
-                    metadata={"imported_from": filename, "import_job_id": job.id},
+                    metadata={
+                        "imported_from": filename,
+                        "import_job_id": job.id,
+                        "ingestion": ingestion_meta.model_dump(),
+                    },
                 )
                 outcome = await persist_import_event(
                     self.events,

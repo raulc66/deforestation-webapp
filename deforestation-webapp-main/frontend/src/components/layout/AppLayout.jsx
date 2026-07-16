@@ -1,5 +1,5 @@
 import { NavLink, useNavigate } from "react-router-dom";
-import { LayoutDashboard, Map, Trees, LogOut, BoxSelect } from "lucide-react";
+import { LayoutDashboard, Map, Trees, LogOut, BoxSelect, FileText, ClipboardList } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
 
@@ -7,6 +7,8 @@ const navItems = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard, testId: "nav-dashboard" },
   { to: "/map", label: "Live Map", icon: Map, testId: "nav-map" },
   { to: "/modules", label: "Modules", icon: BoxSelect, testId: "nav-modules" },
+  { to: "/reports", label: "Reports", icon: FileText, testId: "nav-reports" },
+  { to: "/investigations", label: "Investigations", icon: ClipboardList, testId: "nav-investigations" },
 ];
 
 export default function AppLayout({ children }) {

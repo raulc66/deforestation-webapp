@@ -39,12 +39,39 @@ from app.repositories.data_source_repository import DataSourceRepository
 from app.services.auth_service import AuthService
 from app.services.forest_event_service import ForestEventService
 from app.services.data_source_service import DataSourceService
+from app.services.romania_seed_service import seed_romania_intelligence
+from app.services.scheduler_service import SchedulerService
+from app.modules.analytics.analytics_repository import AnalyticsRepository
+from app.modules.analytics.analytics_service import AnalyticsService
+from app.modules.analytics.intelligence_events_repository import IntelligenceEventsRepository
+from app.modules.analytics.intelligence_events_service import IntelligenceEventsService
+from app.modules.analytics.history_repository import HistoryRepository
+from app.modules.analytics.risk_repository import RiskRepository
+from app.modules.analytics.risk_service import RiskService
+from app.modules.ingestion.providers.firms import FIRMSProvider
+from app.repositories.ingestion_runs_repository import IngestionRunsRepository
+from app.repositories.notification_history_repository import NotificationHistoryRepository
+from app.services.intelligence_notification_service import (
+    IntelligenceNotificationService,
+    build_providers,
+)
+from app.repositories.weather_cache_repository import WeatherCacheRepository
+from app.services.weather_provider import OpenMeteoProvider
+from app.services.weather_service import WeatherService
+from app.modules.reports.report_repository import ReportRepository
+from app.modules.reports.report_service import ReportService
+from app.modules.reports.report_routes import router as reports_router
+from app.modules.investigations.investigation_routes import router as investigations_router
 
 
 logger = setup_logging()
 settings = get_settings()
 
-app = FastAPI(title="ForestWatch API", version="0.3.0")
+app = FastAPI(
+    title="ForestWatch API",
+    version="0.3.0",
+    swagger_ui_parameters={"persistAuthorization": True},
+)
 
 # CORS: allow frontend origin + credentials
 origins = (
@@ -87,6 +114,8 @@ api_router.include_router(notification_router)     # /api/notifications
 api_router.include_router(import_router)           # /api/import/csv, /import/status
 api_router.include_router(analytics_router)        # /api/analytics/*
 api_router.include_router(module_router)
+api_router.include_router(reports_router, prefix="/reports")  # /api/reports/*
+api_router.include_router(investigations_router)  # /api/investigations/*
 app.include_router(api_router)
 
 
@@ -119,6 +148,32 @@ async def startup():
     await db.notifications.create_index("created_at")
     await db.import_jobs.create_index("created_at")
     await db.import_jobs.create_index("status")
+    # Intelligence events — compound index for deduplication lookups
+    await db.intelligence_events.create_index(
+        [("event_type", 1), ("region", 1), ("status", 1)]
+    )
+    await db.intelligence_events.create_index("last_detected_at")
+    # Ingestion run history — newest-first for status endpoint
+    await db.ingestion_runs.create_index([("started_at", -1)])
+    # Notification history — newest-first for status endpoint
+    await db.notification_history.create_index([("sent_at", -1)])
+    # Risk history — date dedup key + newest-first for trend queries
+    await db.risk_history.create_index("date", unique=True)
+    await db.risk_history.create_index([("created_at", -1)])
+    # Weather cache — unique per region + fast staleness query
+    await db.weather_cache.create_index("region", unique=True)
+    await db.weather_cache.create_index([("cached_at", -1)])
+    # Reports — newest-first retrieval; de-dup scheduled reports by type + period
+    await db.reports.create_index([("generated_at", -1)])
+    await db.reports.create_index([("type", 1), ("period_start", 1)])
+    # Investigations — workflow queries
+    await db.investigations.create_index([("status", 1), ("priority", 1)])
+    await db.investigations.create_index([("updated_at", -1)])
+    await db.investigations.create_index("intelligence_event_id", sparse=True)
+    await db.investigations.create_index("region")
+    await db.investigation_timeline.create_index(
+        [("investigation_id", 1), ("created_at", 1)]
+    )
 
     # Migrate legacy string-typed datetime fields to BSON datetime so that
     # sorting and range queries work correctly.
@@ -155,9 +210,108 @@ async def startup():
     events_repo = ForestEventRepository(db)
     event_svc = ForestEventService(events_repo, sources_repo)
     n = await event_svc.seed_demo_data(list(valid_source_ids))
-    logger.info("Startup complete - seeded %d ForestEvent records", n)
+    logger.info("Global demo seed: %d ForestEvent records", n)
+
+    # Romania intelligence seed — deterministic dataset that exercises anomaly
+    # detection, baselines, temporal trends, and the intelligence event pipeline.
+    # No-op when seed events already exist (idempotent).
+    ro_n = await seed_romania_intelligence(events_repo, list(valid_source_ids))
+    if ro_n:
+        logger.info("Romania intelligence seed: %d events inserted", ro_n)
+
+    # Background ingestion scheduler — starts after all seeding is complete.
+    firms_source_id = name_to_id.get("NASA FIRMS")
+    analytics_repo = AnalyticsRepository(db)
+    analytics_svc = AnalyticsService(analytics_repo)
+    intel_repo = IntelligenceEventsRepository(db)
+    intel_svc = IntelligenceEventsService(intel_repo)
+    runs_repo = IngestionRunsRepository(db)
+
+    # Outbound notification service — active only when at least one provider is configured.
+    notif_providers = build_providers(
+        discord_webhook_url=settings.discord_webhook_url if settings.enable_notifications else "",
+        generic_webhook_url=settings.generic_webhook_url if settings.enable_notifications else "",
+    )
+    notif_history_repo = NotificationHistoryRepository(db)
+    notification_svc = IntelligenceNotificationService(notif_providers, notif_history_repo)
+    app.state.notification_svc = notification_svc
+
+    history_repo = HistoryRepository(db)
+    risk_repo = RiskRepository(db)
+
+    # Weather service — provider + MongoDB cache
+    weather_cache_repo = WeatherCacheRepository(db)
+    weather_svc = WeatherService(
+        provider=OpenMeteoProvider(),
+        cache_repo=weather_cache_repo,
+        cache_ttl_minutes=settings.weather_cache_ttl_minutes,
+    )
+    app.state.weather_svc = weather_svc
+
+    risk_svc = RiskService(
+        analytics_svc=analytics_svc,
+        history_repo=history_repo,
+        intel_events_repo=intel_repo,
+        risk_repo=risk_repo,
+        weather_svc=weather_svc,
+    )
+
+    # Reporting service — generates PDF/CSV/JSON reports on demand and on schedule
+    reports_dir = Path(settings.reports_dir)
+    reports_dir.mkdir(parents=True, exist_ok=True)
+    from app.modules.analytics.history_service import HistoryService
+    from app.modules.analytics.threat_assessment_service import ThreatAssessmentService
+    from app.repositories.investigation_repository import InvestigationRepository
+    from app.repositories.investigation_timeline_repository import InvestigationTimelineRepository
+    from app.modules.investigations.investigation_service import InvestigationService
+    history_svc = HistoryService(history_repo)
+    report_repo = ReportRepository(db)
+    threat_svc = ThreatAssessmentService(intel_svc)
+    inv_repo = InvestigationRepository(db)
+    inv_timeline_repo = InvestigationTimelineRepository(db)
+    investigation_svc = InvestigationService(
+        inv_repo, inv_timeline_repo, intel_repo=intel_repo, notification_svc=notification_svc
+    )
+    report_svc = ReportService(
+        report_repo=report_repo,
+        analytics_svc=analytics_svc,
+        intel_svc=intel_svc,
+        risk_svc=risk_svc,
+        history_svc=history_svc,
+        notif_history_repo=notif_history_repo,
+        runs_repo=runs_repo,
+        weather_svc=weather_svc,
+        threat_svc=threat_svc,
+        investigation_svc=investigation_svc,
+        reports_dir=reports_dir,
+    )
+    app.state.report_svc = report_svc
+
+    scheduler = SchedulerService(
+        firms_provider=FIRMSProvider(api_key=settings.firms_api_key),
+        events_service=event_svc,
+        events_repo=events_repo,
+        analytics_service=analytics_svc,
+        intelligence_service=intel_svc,
+        runs_repo=runs_repo,
+        poll_interval_minutes=settings.firms_poll_interval_minutes,
+        enabled=settings.enable_background_ingestion,
+        firms_source_id=firms_source_id,
+        notification_svc=notification_svc,
+        risk_svc=risk_svc,
+        weather_svc=weather_svc,
+        report_svc=report_svc,
+        enable_scheduled_reports=settings.enable_scheduled_reports,
+    )
+    app.state.scheduler = scheduler
+    await scheduler.start()
+
+    logger.info("Startup complete")
 
 
 @app.on_event("shutdown")
 async def shutdown():
+    scheduler: SchedulerService | None = getattr(app.state, "scheduler", None)
+    if scheduler:
+        await scheduler.stop()
     await close_db()

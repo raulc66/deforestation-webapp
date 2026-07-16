@@ -89,6 +89,36 @@ async def list_events_in_bbox(
     return await svc.list_in_bbox(min_lat, min_lng, max_lat, max_lng, limit)
 
 
+@router.get("/map")
+async def events_for_map(
+    limit: int = Query(default=500, le=1000),
+    _: UserPublic = Depends(get_current_user),
+    svc: ForestEventService = Depends(forest_event_service_dep),
+):
+    """Lightweight event projection for map visualisation.
+
+    Returns only the fields needed to render markers — id, lat/lng, severity,
+    region, source and detection date.  Reuses the existing ``list_events``
+    service method to avoid duplicating query logic.
+    """
+    events = await svc.list_events(limit=limit)
+    return {
+        "events": [
+            {
+                "id": e.id,
+                "latitude": e.latitude,
+                "longitude": e.longitude,
+                "severity": e.severity,
+                "region": e.region,
+                "detected_at": e.detected_at.isoformat() if e.detected_at else None,
+                "source": e.source_name or e.source_id or "Unknown",
+                "land_cover_type": e.land_cover_type or "unknown",
+            }
+            for e in events
+        ]
+    }
+
+
 @router.get("", response_model=list[ForestEventPublic])
 async def list_events(
     severity: str | None = Query(default=None),

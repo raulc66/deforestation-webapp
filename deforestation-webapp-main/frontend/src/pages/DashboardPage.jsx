@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { api } from "@/lib/api";
 import AppLayout from "@/components/layout/AppLayout";
 import AnalyticsSection from "@/components/dashboard/AnalyticsSection";
+import IntelligenceSection from "@/components/intelligence/IntelligenceSection";
 import { useAuth } from "@/context/AuthContext";
 import {
   ArrowUpRight,
@@ -118,6 +119,8 @@ export default function DashboardPage() {
           </div>
 
           <AnalyticsSection onOverviewLoaded={handleOverviewLoaded} />
+
+          <IntelligenceSection />
 
           {/* Recent activity — legacy alerts feed for map-compatible rows */}
           <div className="mb-12">

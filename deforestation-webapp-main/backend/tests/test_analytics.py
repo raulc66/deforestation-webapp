@@ -76,6 +76,7 @@ class TestModuleInfo:
         caps = body["capabilities"]
         for k in ("overview", "by_country", "by_event_type", "by_severity", "trends"):
             assert caps.get(k) == "live", f"{k} should be 'live', got {caps.get(k)}"
+        assert caps.get("data_quality") == "live"
 
 
 # --------------------------------------------------------------------- #
@@ -90,6 +91,7 @@ class TestAuthRequired:
             "/analytics/event-types",
             "/analytics/severity",
             "/analytics/trends?start_date=2026-01-01T00:00:00Z&end_date=2026-01-31T00:00:00Z",
+            "/analytics/data-quality",
         ],
     )
     def test_requires_auth(self, path):
@@ -376,6 +378,41 @@ class TestTrends:
         assert sum(b["event_count"] for b in r1.json()["series"]) == sum(
             b["event_count"] for b in r2.json()["series"]
         )
+
+
+# --------------------------------------------------------------------- #
+# Data quality
+# --------------------------------------------------------------------- #
+class TestDataQuality:
+    def test_shape_and_types(self, admin_session):
+        r = admin_session.get(f"{API}/analytics/data-quality", timeout=15)
+        assert r.status_code == 200, r.text
+        body = r.json()
+
+        assert isinstance(body["total_events"], int)
+        assert body["total_events"] >= 0
+        assert isinstance(body["romania_events"], int)
+        assert body["romania_events"] >= 0
+        assert body["romania_events"] <= body["total_events"]
+        assert isinstance(body["duplicate_prevention_rate"], (int, float))
+        assert 0.0 <= body["duplicate_prevention_rate"] <= 1.0
+        assert isinstance(body["coordinate_validity_rate"], (int, float))
+        assert 0.0 <= body["coordinate_validity_rate"] <= 1.0
+
+        dist = body["confidence_distribution"]
+        assert set(dist.keys()) == {"low", "medium", "high"}
+        for bucket in ("low", "medium", "high"):
+            assert isinstance(dist[bucket], int)
+            assert dist[bucket] >= 0
+
+        total_conf = sum(dist.values())
+        scope = body["romania_events"] if body["romania_events"] > 0 else body["total_events"]
+        assert total_conf <= scope
+
+    def test_consistent_with_overview_total(self, admin_session):
+        ov = admin_session.get(f"{API}/analytics/overview", timeout=15).json()
+        dq = admin_session.get(f"{API}/analytics/data-quality", timeout=15).json()
+        assert dq["total_events"] == ov["total_events"]
 
 
 # --------------------------------------------------------------------- #

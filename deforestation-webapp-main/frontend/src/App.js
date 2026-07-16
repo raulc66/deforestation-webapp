@@ -8,6 +8,8 @@ import RegisterPage from "@/pages/RegisterPage";
 import DashboardPage from "@/pages/DashboardPage";
 import MapPage from "@/pages/MapPage";
 import ModulesPage from "@/pages/ModulesPage";
+import ReportsPage from "@/pages/ReportsPage";
+import InvestigationsPage from "@/pages/InvestigationsPage";
 
 function App() {
   return (
@@ -40,6 +42,30 @@ function App() {
               element={
                 <ProtectedRoute>
                   <ModulesPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/reports"
+              element={
+                <ProtectedRoute>
+                  <ReportsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/investigations"
+              element={
+                <ProtectedRoute>
+                  <InvestigationsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/investigations/:id"
+              element={
+                <ProtectedRoute>
+                  <InvestigationsPage />
                 </ProtectedRoute>
               }
             />

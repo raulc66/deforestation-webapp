@@ -32,7 +32,7 @@ async def register(
     return user
 
 
-@router.post("/login", response_model=UserPublic)
+@router.post("/login")
 async def login(
     payload: LoginRequest,
     response: Response,
@@ -40,7 +40,10 @@ async def login(
 ):
     user, access, refresh = await svc.login(payload)
     _set_auth_cookies(response, access, refresh)
-    return user
+    # access_token is included in the body so Swagger users can copy it into
+    # the Authorize dialog.  All UserPublic fields remain at the top level so
+    # the browser frontend (setUser(data)) is unaffected.
+    return {**user.model_dump(), "access_token": access, "token_type": "bearer"}
 
 
 @router.post("/logout")

@@ -1,464 +1,417 @@
-# ForestWatch — Architecture
+# ForestWatch Ecosystem Intelligence Platform — Implementation Architecture (As-Built)
 
-**Last updated:** 2026-06-10  
-**API version:** 0.3.0
+**Version:** 0.3.0 (verified from `backend/server.py`)  
+**Last audited:** 2026-07-07  
+**Scope:** Documents only what is verified in the codebase.
+
+> **Canonical architecture:** `docs/architecture/` is the single source of truth for
+> all architectural concepts, contracts, and invariants (Architecture v1.0). This
+> document is an **as-built implementation map** that shows how the current codebase
+> realizes that architecture. Where an architectural concept is defined, this document
+> references the canonical specification rather than restating it. Where the current
+> implementation has not yet been aligned to canonical v1.0, the canonical specification
+> governs the target design.
+
+### Canonical references
+
+| Concept | Canonical source |
+|---------|------------------|
+| Platform vision and boundaries | `docs/architecture/00-platform-vision.md` |
+| Architectural invariants | `docs/architecture/01-architecture-principles.md` |
+| Intelligence Engine and identity | `docs/architecture/02-intelligence-engine.md` |
+| Reconciliation contract | `docs/architecture/03-reconciliation-engine.md` |
+| Detector Framework | `docs/architecture/04-detector-framework.md` |
+| Spatial Engine | `docs/architecture/05-spatial-engine.md` |
+| Domain plug-in architecture | `docs/architecture/06-domain-plugin-architecture.md` |
+| Reporting and Command Center | `docs/architecture/07-reporting-and-command-center.md` |
+| System context and diagram | `docs/architecture/09-system-context.md` |
+| Dependency rules | `docs/architecture/10-dependency-rules.md` |
+| Decision records | `docs/architecture/adr/` |
 
 ---
 
-## 1. System overview
+## System Overview
 
-ForestWatch monitors forest disturbance events. The backend is a **layered FastAPI application** over MongoDB. The frontend is a **React SPA** that authenticates via httpOnly cookies and consumes REST APIs.
+ForestWatch is a full-stack environmental intelligence platform. It ingests forest disturbance events (primarily via NASA FIRMS and CSV import), stores them in MongoDB, runs analytics and anomaly detection, maintains operational intelligence events, and exposes dashboards, reports, investigations, and outbound notifications.
 
 ```mermaid
 flowchart TB
-    subgraph Client
-        FE[React SPA]
+    subgraph Clients
+        FE[React Frontend]
     end
 
-    subgraph API["FastAPI — server.py"]
-        AUTH[/api/auth]
-        EVENTS[/api/events]
-        ALERTS[/api/alerts legacy]
-        DS[/api/data-sources]
-        IMPORT[/api/import]
-        ANALYTICS[/api/analytics]
-        MODULES[/api/modules]
+    subgraph API["FastAPI /api"]
+        AUTH[Auth]
+        EVENTS[Events]
+        ANALYTICS[Analytics / Intelligence]
+        REPORTS[Reports]
+        INV[Investigations]
     end
 
-    subgraph Domain
-        FES[ForestEventService]
-        DSS[DataSourceService]
-        AUTH_SVC[AuthService]
-    end
-
-    subgraph Modules
-        ING[ingestion — CsvImporter]
-        ANA[analytics — repo + service]
+    subgraph Background
+        SCH[SchedulerService]
     end
 
     subgraph MongoDB
-        users[(users)]
-        fe[(forest_events)]
-        ds[(data_sources)]
-        ij[(import_jobs)]
-        notif[(notifications)]
+        DB[(13 collections)]
+    end
+
+    subgraph External
+        FIRMS[NASA FIRMS]
+        METEO[Open-Meteo]
+        WEBHOOKS[Discord / Generic Webhooks]
     end
 
     FE --> API
-    IMPORT --> ING --> FES
-    ANALYTICS --> ANA --> fe
-    EVENTS --> FES --> fe
-    ALERTS --> FES
-    DS --> DSS --> ds
-    AUTH --> AUTH_SVC --> users
-    FES --> ds
-    ING --> ij
+    SCH --> FIRMS
+    SCH --> METEO
+    API --> DB
+    SCH --> DB
+    SCH --> WEBHOOKS
 ```
 
-**Canonical rule:** All disturbance data flows into `forest_events` through `ForestEventService.create_event()`. Analytics and legacy alerts **read** from that collection only.
+**Entry points:**
+- Backend: `backend/server.py`
+- Frontend: `frontend/src/index.js` → `App.js`
 
 ---
 
-## 2. Layered backend structure
+## Backend Architecture
 
-```
-backend/
-├── server.py                 # App composition, startup hooks, router mounting
-└── app/
-    ├── core/                 # config, database, security, errors, logging, migrations
-    ├── models/               # Pydantic domain documents + DTOs
-    ├── repositories/         # MongoDB access (one collection per repo)
-    ├── services/             # Business logic (auth, events, data sources, alerts, notifications)
-    ├── api/                  # FastAPI routers + deps.py
-    └── modules/              # Feature packages (ingestion, analytics, placeholders)
-```
+> The normative layering, allowed/forbidden dependencies, and per-layer responsibilities
+> are defined in `docs/architecture/10-dependency-rules.md` and
+> `docs/architecture/01-architecture-principles.md`. The table below maps those rules to
+> the current package layout.
 
-| Layer | Responsibility | Example |
-|-------|----------------|---------|
-| **api** | HTTP, auth deps, request parsing | `import_routes.py` |
-| **services** | Domain rules, orchestration | `ForestEventService` |
-| **repositories** | CRUD, queries, aggregations | `ForestEventRepository` |
-| **models** | Types, validation, mongo serialization | `ForestEvent`, `ImportJob` |
-| **core** | Cross-cutting infrastructure | `get_settings()`, `AppError` |
-| **modules** | Optional feature verticals | `CsvImporter`, `AnalyticsRepository` |
+Layered design under `backend/app/`:
 
-**Dependency injection:** `app/api/deps.py` wires repositories and services into route handlers via FastAPI `Depends()`.
+| Layer | Path | Responsibility |
+|-------|------|----------------|
+| Core | `core/` | Config, logging, DB, security, errors, migrations |
+| Models | `models/` | Pydantic domain models |
+| Repositories | `repositories/` + module repos | MongoDB persistence |
+| Services | `services/` | Cross-cutting business logic |
+| Modules | `modules/` | Feature packages (analytics, ingestion, reports, investigations) |
+| API | `api/` + module routes | FastAPI routers |
 
----
+All HTTP routes mount under `/api` via `api_router` in `server.py`.
 
-## 3. Domain model
+### Registered routers
 
-### 3.1 ForestEvent (canonical)
-
-The central entity. Stored in `forest_events`.
-
-| Field | Type | Notes |
-|-------|------|-------|
-| `title`, `country`, `region` | string | Human labels |
-| `latitude`, `longitude` | float | Client-friendly flat coords |
-| `location` | GeoJSON Point | `[lng, lat]` — indexed 2dsphere |
-| `event_type` | enum | 7-value taxonomy |
-| `severity` | enum | low → critical |
-| `affected_area_ha` | float | Hectares |
-| `confidence` | float | 0–1 |
-| `source_id` | string | FK → `data_sources._id` |
-| `detected_at` | UTC datetime | BSON datetime |
-| `status` | enum | open / investigating / resolved |
-| `metadata` | dict | Import provenance, external IDs |
-
-### 3.2 DataSource
-
-Registry of event producers (`data_sources` collection). Seeded demo entries cover satellite, CSV, API, scraper, and manual types. Ingestion resolves `source_id` from this catalog.
-
-### 3.3 ImportJob
-
-Audit record per ingestion run (`import_jobs` collection). Tracks `status`, row counts, per-row errors, duration. Used by CSV today; intended reuse for FIRMS and future providers.
-
-### 3.4 User & Notification
-
-- `users` — email/password auth
-- `notifications` — references `forest_event_id`; dispatch not implemented
+| Router | Prefix | File |
+|--------|--------|------|
+| Auth | `/api/auth` | `app/api/auth_routes.py` |
+| Data sources | `/api/data-sources` | `app/api/data_source_routes.py` |
+| Events | `/api/events` | `app/api/event_routes.py` |
+| Alerts (legacy) | `/api/alerts` | `app/api/alert_routes.py` |
+| In-app notifications | `/api/notifications` | `app/api/notification_routes.py` |
+| CSV import | `/api/import` | `app/api/import_routes.py` |
+| Modules registry | `/api/modules` | `app/api/module_routes.py` |
+| Analytics | `/api/analytics` | `app/modules/analytics/analytics_routes.py` |
+| Reports | `/api/reports` | `app/modules/reports/report_routes.py` |
+| Investigations | `/api/investigations` | `app/modules/investigations/investigation_routes.py` |
 
 ---
 
-## 4. API surface (current)
+## Frontend Architecture
 
-| Prefix | Purpose | Auth |
-|--------|---------|------|
-| `/api/auth` | register, login, logout, refresh, me | Mixed |
-| `/api/events` | Canonical CRUD + geo + time queries | Required |
-| `/api/alerts` | Legacy list + stats for dashboard/map | Required |
-| `/api/data-sources` | Source registry CRUD | Required (except `/types`) |
-| `/api/notifications` | List + mark read | Required |
-| `/api/import` | CSV upload + job status | Required |
-| `/api/analytics` | Aggregations | Required |
-| `/api/modules` | Capability registry | Public |
+Create React App (CRACO) + React 19 + React Router 7.
 
----
+| Area | Location | Role |
+|------|----------|------|
+| Routing | `frontend/src/App.js` | Public auth routes; protected dashboard pages |
+| Auth state | `frontend/src/context/AuthContext.jsx` | Session via cookie-based API |
+| HTTP | `frontend/src/lib/api.js` | Axios client (`withCredentials: true`) |
+| API clients | `frontend/src/api/` | `analytics.js`, `reports.js`, `investigations.js` |
+| Layout | `components/layout/AppLayout.jsx` | Sidebar navigation |
+| Dashboard | `pages/DashboardPage.jsx` | Analytics + intelligence command center |
+| Intelligence UI | `components/intelligence/*` | Live intel cards, map, risk, weather, history |
+| Investigations UI | `pages/InvestigationsPage.jsx` | List, detail, create, close |
+| Reports UI | `pages/ReportsPage.jsx` | Generate, list, download |
+| Legacy map | `pages/MapPage.jsx` | Uses `/api/alerts` (not intelligence map) |
 
-## 5. Geospatial implementation
-
-### 5.1 Model (`app/models/geo.py`)
-
-- `GeoJSONPoint` — RFC 7946 Point, coordinates `[longitude, latitude]`
-- `bbox_polygon()` — closed ring for bounding-box queries
-- `ForestEventService._sync_location()` sets `location` from lat/lng on every create/update
-
-### 5.2 Index
-
-```python
-# server.py startup
-await db.forest_events.create_index([("location", "2dsphere")])
-```
-
-### 5.3 Queries (`ForestEventRepository`)
-
-| Endpoint | Mongo operator | Sort |
-|----------|----------------|------|
-| `GET /events/nearby` | `$nearSphere` + `$maxDistance` (meters) | Distance ASC |
-| `GET /events/bbox` | `$geoWithin` on polygon | `detected_at` DESC |
-
-### 5.4 Migration
-
-`backfill_geojson_location()` runs at startup — idempotent backfill for events missing `location`.
-
-### 5.5 Frontend
-
-`MapPage.jsx` uses **flat** `location.lat` / `location.lng` from the legacy alerts API, not GeoJSON directly. Backend maintains both shapes.
-
-```mermaid
-flowchart LR
-    CSV[CSV row lat/lng] --> FES[ForestEventService]
-    API[Future API coords] --> FES
-    FES --> FLAT[latitude / longitude fields]
-    FES --> GEO[location GeoJSON Point]
-    GEO --> IDX[2dsphere index]
-    IDX --> NEAR[nearby query]
-    IDX --> BBOX[bbox query]
-    FLAT --> MAP[MapPage markers]
-```
+**Protected routes:** `/dashboard`, `/map`, `/modules`, `/reports`, `/investigations`, `/investigations/:id`
 
 ---
 
-## 6. Analytics implementation
+## Scheduler Workflow
 
-### 6.1 Architecture
+> Scheduler responsibilities are defined normatively in
+> `docs/architecture/adr/ADR-007-scheduler-responsibilities.md` and
+> `docs/architecture/03-reconciliation-engine.md`: the scheduler orchestrates only, and
+> reconciliation is a write operation owned by the scheduler
+> (`docs/architecture/adr/ADR-011-read-write-separation.md`). The sequence below is the
+> current as-built cycle.
 
-```
-GET /api/analytics/*
-    → analytics_routes.py
-    → AnalyticsService (shape + validate params)
-    → AnalyticsRepository (MongoDB aggregation only)
-    → forest_events collection
-```
-
-**No cache, no ML, no write path.** New events (seed, CSV, future imports) appear in aggregations immediately.
-
-### 6.2 Repository pipelines (`analytics_repository.py`)
-
-| Method | Pipeline |
-|--------|----------|
-| `overview()` | `$group` all docs → counts, `$sum` area, `$avg` confidence, status `$cond` sums |
-| `by_country()` | `$group` by `$country`, sort `event_count` DESC |
-| `by_event_type()` | `$group` by `$event_type` |
-| `by_severity()` | `$group` by `$severity` |
-| `trends(start, end, interval)` | `$match` on `detected_at`, `$group` with `$dateTrunc` (UTC) |
-
-### 6.3 Service shaping (`analytics_service.py`)
-
-- Rounds floats via `_r()`
-- **Zero-fills** full `EVENT_TYPES` taxonomy (7 entries) for stable chart axes
-- **Zero-fills** severity dict in canonical order: low → critical
-- Trends: default range last 30 days; validates `interval` and `start ≤ end`
-
-### 6.4 Circular import avoidance
-
-`analytics/__init__.py` does **not** import `analytics_routes`. `server.py` imports the router directly:
-
-```python
-from app.modules.analytics.analytics_routes import router as analytics_router
-```
-
-### 6.5 Frontend gap
-
-Dashboard uses `GET /api/alerts/stats` (legacy `ForestEventRepository.stats()`), **not** `/api/analytics/*`. Both read the same underlying data with different response shapes.
-
----
-
-## 7. CSV ingestion flow (implemented)
-
-### 7.1 Sequence
+Implemented in `app/services/scheduler_service.py`. Started at application startup when `ENABLE_BACKGROUND_INGESTION=true`.
 
 ```mermaid
 sequenceDiagram
-    participant U as User
-    participant API as POST /api/import/csv
-    participant CI as CsvImporter
-    participant VAL as validation.py
-    participant FES as ForestEventService
-    participant IJ as import_jobs
-    participant FE as forest_events
+    participant Loop as SchedulerService._loop
+    participant FIRMS as FIRMSProvider
+    participant Weather as WeatherService
+    participant Analytics as AnalyticsService
+    participant Intel as IntelligenceEventsService
+    participant Risk as RiskService
+    participant Notif as IntelligenceNotificationService
+    participant Reports as ReportService
+    participant Runs as IngestionRunsRepository
 
-    U->>API: multipart file + optional source_id
-    API->>CI: import_csv(bytes, filename, ...)
-    CI->>CI: resolve DataSource (explicit or type=csv)
-    CI->>IJ: insert ImportJob(status=running)
-    CI->>CI: UTF-8-sig decode + DictReader
-    CI->>VAL: validate_header
-    loop each row
-        CI->>VAL: validate_row
-        alt valid
-            CI->>FES: create_event(ForestEventCreate)
-            FES->>FE: insert + sync location
-        else invalid
-            CI->>CI: append ImportError
-        end
-    end
-    CI->>IJ: finalize (completed/partial/failed)
-    CI-->>API: ImportJobPublic
+    Loop->>FIRMS: run() — fetch, normalize, dedupe, persist
+    Loop->>Weather: refresh_if_stale() (best-effort)
+    Loop->>Analytics: reconcile_intelligence_events(intel)
+    Loop->>Risk: persist_snapshot() (best-effort)
+    Loop->>Notif: dispatch_cycle_notifications() (if enabled)
+    Loop->>Reports: generate_scheduled_daily/weekly/monthly (best-effort)
+    Loop->>Runs: create_run(status=success|failed)
+    Loop->>Loop: sleep(poll_interval_minutes)
 ```
 
-### 7.2 Validation rules (`validation.py`)
+**Configuration** (`app/core/config.py`):
+- `firms_poll_interval_minutes` (default 60)
+- `enable_background_ingestion`
+- `enable_scheduled_reports`
 
-**Required columns:** title, country, region, latitude, longitude, event_type, severity, affected_area_ha  
-**Optional:** confidence (0–1), detected_at (ISO 8601)
-
-### 7.3 Limits
-
-- Max file size: 5 MB
-- Max rows per run: 10,000
-- Synchronous (blocks HTTP request)
-
-### 7.4 Provenance metadata
-
-```json
-{
-  "imported_from": "upload.csv",
-  "import_job_id": "<ObjectId>"
-}
-```
-
-### 7.5 Analytics downstream
-
-Imported events are standard `forest_events` documents → included in all analytics aggregations and map/dashboard via legacy alerts adapter.
+**Note:** `app/modules/ingestion/scheduler.py` is a scaffold registry only. The active scheduler is `SchedulerService`.
 
 ---
 
-## 8. Provider framework (designed, not implemented)
+## Intelligence Pipeline
 
-The following is the **target architecture** for multi-provider ingestion. Only the CSV path exists today as a monolithic `CsvImporter`.
+> The intelligence pipeline model — observations, detection, reconciliation, and tracked
+> situations — is defined canonically in `docs/architecture/02-intelligence-engine.md`,
+> `docs/architecture/03-reconciliation-engine.md`,
+> `docs/architecture/04-detector-framework.md`, and
+> `docs/architecture/09-system-context.md`.
+>
+> For the current step-by-step as-built implementation (file paths, endpoints, and
+> tests), see `docs/INTELLIGENCE_PIPELINE.md`.
 
-### 8.1 Design goals
+---
 
-- Plug in GFW, NASA FIRMS, satellite APIs, scrapers without changing `ForestEventService`
-- Support **push** (upload) and **pull** (scheduled API) modes
-- Reuse `ImportJob` / `DataSource` where possible
-- Defer framework until a second provider validates the pattern (see NASA FIRMS MVP in ROADMAP)
+## Investigation Workflow
 
-### 8.2 Target components
+Operational objects independent from intelligence generation.
 
 ```mermaid
-flowchart TB
-    subgraph Triggers
-        UPLOAD[HTTP upload]
-        CRON[Scheduler]
-        MANUAL[POST /ingestion/run]
-    end
-
-    subgraph Framework["ingestion framework (planned)"]
-        ORCH[IngestionOrchestrator]
-        REG[ProviderRegistry]
-        PIPE[IngestionPipeline]
-    end
-
-    subgraph Providers["IngestionProvider implementations"]
-        CSV_P[csv_upload]
-        FIRMS[nasa_firms]
-        GFW[gfw]
-        SAT[satellite]
-        SCR[scraper]
-    end
-
-    UPLOAD & CRON & MANUAL --> ORCH
-    ORCH --> REG --> Providers
-    Providers -->|RawRecord| PIPE
-    PIPE --> FES[ForestEventService]
+stateDiagram-v2
+    [*] --> OPEN: create()
+    OPEN --> IN_PROGRESS: assign() or update(status)
+    IN_PROGRESS --> WAITING: update(status)
+    WAITING --> IN_PROGRESS: update(status)
+    IN_PROGRESS --> RESOLVED: update(status)
+    RESOLVED --> CLOSED: close()
+    OPEN --> CLOSED: close()
+    CLOSED --> [*]: archive() soft-delete
 ```
 
-### 8.3 `IngestionProvider` interface (planned)
+**Key files:**
+- Service: `app/modules/investigations/investigation_service.py`
+- Timeline: `app/repositories/investigation_timeline_repository.py` (insert-only)
+- Optional link: `intelligence_event_id` on `Investigation`
 
-| Method | Purpose |
+---
+
+## Reporting Workflow
+
+1. Client calls `POST /api/reports/generate` → pending record in `reports` collection
+2. `ReportService.generate_background()` gathers data via `ReportSectionRegistry`
+3. Exports to PDF (`reportlab`), CSV, or JSON on disk (`settings.reports_dir`)
+4. Scheduler may auto-generate daily/weekly/monthly reports when enabled
+
+**15 built-in report sections** registered in `app/modules/reports/report_sections.py`.
+
+---
+
+## Notification Workflow
+
+Two separate systems:
+
+### A. Outbound intelligence webhooks (active when configured)
+- **Service:** `IntelligenceNotificationService`
+- **Providers:** `DiscordWebhookProvider`, `GenericWebhookProvider` via `build_providers()`
+- **History:** `notification_history` collection
+- **Triggers:** scheduler cycle diffs; investigation created/assigned/escalated/closed
+
+### B. In-app user notifications
+- **Service:** `NotificationService`
+- **Collection:** `notifications`
+- **API:** `/api/notifications`
+- **Frontend consumer:** Not verified from implementation (no UI calls this API)
+
+---
+
+## Weather Pipeline
+
+1. `OpenMeteoProvider` fetches observations for Romania regions
+2. `WeatherService` caches in `weather_cache` (TTL via `weather_cache_ttl_minutes`, application-level — not MongoDB TTL index)
+3. Scheduler calls `refresh_if_stale()` each cycle
+4. `RiskService` incorporates weather score via `compute_weather_score()`
+
+---
+
+## GIS Pipeline
+
+> The canonical geospatial architecture — reusable spatial index, polygon and overlay
+> providers, and the additive enrichment pipeline — is defined in
+> `docs/architecture/05-spatial-engine.md` and
+> `docs/architecture/adr/ADR-003-spatial-engine.md`. The current implementation below is
+> the land-cover realization of that engine.
+
+1. Bundled GeoJSON: `app/data/gis/romania_corine_simplified.geojson`
+2. `gis_loader.py` — spatial index, point-in-polygon
+3. `gis_land_cover_service.py` — classifies coordinates → land cover type
+4. `land_cover_service.py` — backward-compatible facade
+5. Used during ingestion and `AnalyticsService.get_land_cover_distribution()`
+
+Legacy `app/data/romania_landcover.py` exists but is superseded by GIS GeoJSON (only referenced in tests).
+
+---
+
+## Ecosystem Intelligence Architecture
+
+> The ecosystem intelligence model — incident categories, threat categories, ecosystem
+> domains, and how new domains plug in — is defined canonically in
+> `docs/architecture/02-intelligence-engine.md` and
+> `docs/architecture/06-domain-plugin-architecture.md`. Design notes for the current
+> implementation live in `backend/app/core/ecosystem/ARCHITECTURE.md`. The tables below
+> map the shared-kernel modules to code.
+
+Core definitions in `app/core/ecosystem/`:
+
+| Module | Purpose |
 |--------|---------|
-| `capabilities()` | push/pull, batch limits, credentials |
-| `validate_config(config)` | Pre-flight config check |
-| `extract(ctx, payload)` | Async iterator of `RawRecord` |
-| `map_record(raw, ctx)` | → `CanonicalEventDraft` |
-| `idempotency_key(draft, ctx)` | Dedupe key |
+| `incident_categories.py` | `IncidentCategory` enum |
+| `domains.py` | `EcosystemDomain` enum |
+| `command_center.py` | `CommandCenterSnapshot`, `DomainModuleStatus` |
+| `threat_categories.py` | `ThreatCategory`, `ThreatOrigin` |
+| `threat_assessment.py` | `ThreatAssessment`, `PriorityLevel` |
+| `threat_mapping.py` | Incident → threat mapping |
 
-### 8.4 `IngestionOrchestrator` (planned)
+**Consumers:**
+- `CommandCenterService.get_snapshot()`
+- `ThreatAssessmentService`
+- `incident_aggregation.py`
+- `IntelligenceEventsService` (sets `incident_category`)
 
-Single entry for all runs: create `IngestionRun`, select provider, invoke pipeline, finalize metrics, update `DataSource` watermark.
-
-### 8.5 `IngestionPipeline` (planned)
-
-```
-extract → map → validate → dedupe_check → ForestEventService.create_event
-```
-
-Record errors → run.errors[]; fatal config/network errors → abort run.
-
-### 8.6 Planned directory layout
-
-```
-app/modules/ingestion/
-├── orchestrator.py          # planned
-├── registry.py              # planned
-├── pipeline.py              # planned
-├── core/interfaces.py       # planned
-├── providers/
-│   ├── csv_upload/          # migrate from csv_importer.py
-│   ├── nasa_firms/
-│   ├── gfw/
-│   ├── satellite/
-│   └── scraper/
-└── scheduler/
-    ├── runner.py            # APScheduler → arq
-    └── bindings.py
-```
-
-### 8.7 NASA FIRMS MVP (pragmatic shortcut)
-
-Before the full framework, add **`FirmsImporter`** parallel to `CsvImporter`:
-
-- `firms_client.py` — HTTP fetch FIRMS Area CSV API
-- `firms_mapper.py` — FIRMS row → `ForestEventCreate` (`event_type=wildfire`)
-- `POST /api/import/firms` — manual trigger
-- Reuse `ImportJob`, `ForestEventService`, `DataSource` seed row
-- Dedupe via `metadata.firms_key`
-
-~350 lines new code; **no** registry/orchestrator until a third provider is needed.
+Additional design notes: `backend/app/core/ecosystem/ARCHITECTURE.md`
 
 ---
 
-## 9. Module registry
+## Threat Engine
 
-| Module | Status | Implementation |
-|--------|--------|----------------|
-| `ingestion` | active | CSV import live; scheduler stub |
-| `analytics` | active | 5 aggregation endpoints |
-| `scraping` | planned | `module_info()` only |
-| `satellite` | planned | `module_info()` only |
-| `alerting` | planned | `module_info()` only |
-| `ai_predictions` | planned | `module_info()` only |
+**Service:** `app/modules/analytics/threat_assessment_service.py`
 
-`GET /api/modules` returns metadata for UI (`ModulesPage.jsx`). Planned modules list `planned_capabilities` but have no routes.
+- Reads active intelligence events via `IntelligenceEventsService`
+- Maps `incident_category` → `ThreatCategory` via `threat_mapping.py`
+- Produces `ThreatAssessment` with deterministic scoring from priority, severity, escalation, trend
+- Exposed at `/api/analytics/intelligence/threats` and `/threat-summary`
 
 ---
 
-## 10. Authentication & security
+## Risk Engine
 
-- Passwords: bcrypt
-- Tokens: PyJWT HS256 (`JWT_SECRET`)
-- Cookies: `httponly`, `secure`, `samesite=none` (cross-origin preview deployments)
-- `get_current_user` reads cookie or Bearer header
-- CORS: configurable via `CORS_ORIGINS`
+**Service:** `app/modules/analytics/risk_service.py`
+
+Combines:
+- Current activity (analytics)
+- Historical activity (history repo)
+- Forest/land-cover signal
+- Intelligence priority and escalation
+- Weather score (when cache available)
+
+Persists daily snapshots to `risk_history`. Exposed at `/api/analytics/intelligence/risk`.
 
 ---
 
-## 11. Startup lifecycle (`server.py`)
+## Authentication Flow
 
-1. Ensure indexes (users, data_sources, forest_events, notifications, import_jobs)
+```mermaid
+sequenceDiagram
+    participant Client
+    participant AuthRoutes
+    participant AuthService
+    participant UserRepo
+    participant JWT as core/security.py
+
+    Client->>AuthRoutes: POST /auth/login
+    AuthRoutes->>AuthService: login(credentials)
+    AuthService->>UserRepo: find by email
+    AuthService->>JWT: create_access_token + create_refresh_token
+    AuthRoutes->>Client: Set httponly cookies + UserPublic
+
+    Client->>AuthRoutes: GET /auth/me (or any protected route)
+    Note over Client: Cookie access_token OR Authorization Bearer
+    AuthRoutes->>AuthService: get_user_from_token()
+    AuthService->>JWT: decode_token (type=access)
+    AuthService->>UserRepo: find_by_id(sub)
+    AuthService->>Client: UserPublic
+```
+
+**Protected routes** use `get_current_user` from `app/api/deps.py`.
+
+**Public routes (verified):** `/api/`, `/api/health`, `/api/auth/register|login|logout|refresh`, `/api/events/event-types`, `/api/data-sources/types`, `/api/modules/*`
+
+---
+
+## Dependency Injection
+
+FastAPI `Depends()` factories in `app/api/deps.py`:
+
+- **Repository deps:** `*_repo_dep(db=Depends(db_dep))`
+- **Service deps:** compose repository deps
+- **Cross-service deps:** e.g. `risk_service_dep`, `report_service_dep`, `command_center_service_dep`
+- **App state access:** `investigation_service_dep` reads `request.app.state.notification_svc`
+
+Request-scoped services are constructed per request via deps. Long-lived services (`notification_svc`, `weather_svc`, `report_svc`, `scheduler`) are set on `app.state` at startup.
+
+---
+
+## Startup Sequence
+
+Verified order in `server.py` → `startup()`:
+
+1. `get_db()` — MongoDB connection
 2. Drop legacy `alerts` collection if present
-3. Run `migrate_datetime_strings()`
-4. Run `backfill_geojson_location()`
-5. Seed admin user
-6. Seed DataSource catalog
-7. Re-seed ForestEvents if stale `source_id` references detected
-8. Seed 20 demo events if collection empty
+3. Create indexes (13 collections)
+4. `migrate_datetime_strings(db)`
+5. `backfill_geojson_location(db)`
+6. `AuthService.seed_admin()`
+7. `DataSourceService.seed_demo()`
+8. Re-seed `forest_events` if stale `source_id` references
+9. `ForestEventService.seed_demo_data()`
+10. `seed_romania_intelligence()` (idempotent)
+11. Construct analytics, intel, notification, weather, risk, report, investigation services
+12. Assign `app.state.notification_svc`, `weather_svc`, `report_svc`
+13. Construct and start `SchedulerService` → `app.state.scheduler`
+
+**Shutdown:** stop scheduler, `close_db()`
 
 ---
 
-## 12. Frontend architecture
+## Database Initialization
 
-```
-frontend/src/
-├── context/AuthContext.jsx    # login state, cookie session
-├── lib/api.js                 # axios instance → REACT_APP_BACKEND_URL/api
-├── components/
-│   ├── layout/AppLayout.jsx   # nav shell
-│   ├── ProtectedRoute.jsx
-│   └── ui/                    # shadcn/Radix components
-└── pages/
-    ├── LoginPage / RegisterPage
-    ├── DashboardPage          # /api/alerts + /api/alerts/stats
-    ├── MapPage                # /api/alerts + Leaflet
-    └── ModulesPage            # /api/modules
-```
+- **Connection:** `app/core/database.py` — Motor async client from `MONGO_URL`, database `DB_NAME`
+- **Indexes:** all created in `server.py` startup (see `docs/DATABASE.md`)
+- **Migrations:** `app/core/migrations.py` — datetime string conversion, GeoJSON backfill
+- **Seeding:** admin user, data sources, demo forest events, Romania intelligence dataset
 
-- **Craco** for `@/` path alias and optional webpack health-check plugin
-- **TanStack Query** provider in `index.js` (available; pages mostly use raw `useEffect` + axios)
+**TTL indexes:** Not verified from implementation. Weather staleness uses application-level TTL (`weather_cache_ttl_minutes`).
 
 ---
 
-## 13. Open architectural decisions
+## Related Documentation
 
-| # | Decision | Options | Recommendation |
-|---|----------|---------|----------------|
-| 1 | **Dedupe store** | `metadata.dedupe_key` index vs dedicated `ingestion_dedupe_keys` collection | Start with metadata index for FIRMS MVP; dedicated collection when volume grows |
-| 2 | **Job model evolution** | Extend `ImportJob` vs rename to `IngestionRun` | Extend in place for FIRMS; rename when framework lands |
-| 3 | **Scheduler runtime** | In-process APScheduler vs arq+Redis worker | APScheduler for FIRMS/GFW pulls; arq for satellite tiles |
-| 4 | **Scraper semantics** | Create new events vs enrich existing `metadata` | Enrichment mode for news; create for distinct incidents |
-| 5 | **GFW update policy** | Upsert by external ID vs insert new version | Upsert status field on existing event |
-| 6 | **Analytics frontend** | Migrate dashboard to `/api/analytics` vs keep `/api/alerts/stats` | Adopt analytics for charts; keep alerts for table/map until `/api/events` legacy shape migration |
-| 7 | **Auth on catalog endpoints** | Lock down `/event-types`, `/data-sources/types` | Yes, for consistency (low priority) |
-| 8 | **Module 404 behavior** | Return HTTP 404 vs 200 `not_found` | HTTP 404 (breaking change; document) |
-| 9 | **Provider framework timing** | Build before FIRMS vs FIRMS first | **FIRMS first** (documented MVP plan) |
-| 10 | **Test strategy** | Keep HTTP integration tests vs add TestClient unit layer | Add TestClient fixtures for local CI without live server |
+**Canonical architecture (source of truth):** `docs/architecture/` — see the canonical
+references table at the top of this document.
 
----
+**As-built implementation references:**
 
-## 14. Related documents
-
-- [PROJECT_STATE.md](./PROJECT_STATE.md) — implementation status, tests, limitations
-- [ROADMAP.md](./ROADMAP.md) — phased priorities
-- `memory/PRD.md` — historical change log (superseded by `docs/` for architecture reference)
+| Document | Contents |
+|----------|----------|
+| `DATABASE.md` | Collection schemas and indexes |
+| `API_REFERENCE.md` | All HTTP endpoints |
+| `PROJECT_STRUCTURE.md` | Package layout |
+| `INTELLIGENCE_PIPELINE.md` | Pipeline step-by-step (as-built) |
+| `EXTENDING_FORESTWATCH.md` | Extension recipes (as-built) |
+| `DEPENDENCIES.md` | External libraries |

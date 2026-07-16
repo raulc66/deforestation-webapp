@@ -76,6 +76,259 @@ export async function fetchDashboardAnalytics() {
   return { overview, countries, eventTypes, severity, trends };
 }
 
+/**
+ * @returns {Promise<{
+ *   active: Array<{
+ *     id: string;
+ *     region: string;
+ *     severity: string;
+ *     escalation_level: string;
+ *     trend: string;
+ *     priority_score: number;
+ *     detection_count: number;
+ *     current_score: number;
+ *     previous_score: number | null;
+ *     last_detected_at: string;
+ *     first_detected_at: string;
+ *     status: string;
+ *     metadata: Record<string, unknown>;
+ *   }>;
+ *   resolved: Array<unknown>;
+ * }>}
+ */
+export async function fetchIntelligenceEvents() {
+  const { data } = await api.get("/analytics/intelligence/events");
+  return data;
+}
+
+/**
+ * @returns {Promise<{
+ *   active: number;
+ *   resolved: number;
+ *   persistent: number;
+ *   critical: number;
+ *   worsening: number;
+ *   stable: number;
+ *   improving: number;
+ *   highest_priority_score: number | null;
+ *   highest_priority_region: string | null;
+ * }>}
+ */
+export async function fetchIntelligenceSummary() {
+  const { data } = await api.get("/analytics/intelligence/events/summary");
+  return data;
+}
+
+/**
+ * @returns {Promise<{ events: Array<{
+ *   id: string;
+ *   latitude: number;
+ *   longitude: number;
+ *   severity: string;
+ *   region: string;
+ *   detected_at: string | null;
+ *   source: string;
+ * }> }>}
+ */
+export async function fetchMapEvents() {
+  const { data } = await api.get("/events/map");
+  return data;
+}
+
+/**
+ * @returns {Promise<{
+ *   anomalies: Array<{
+ *     region: string;
+ *     current_count: number;
+ *     baseline_avg: number;
+ *     deviation_percent: number;
+ *     anomaly_score: number;
+ *     severity: string;
+ *     status: string;
+ *   }>;
+ *   evaluated_at: string;
+ *   total_regions: number;
+ *   anomaly_count: number;
+ * }>}
+ */
+export async function fetchAnomalies() {
+  const { data } = await api.get("/analytics/intelligence/anomalies");
+  return data;
+}
+
+/**
+ * @returns {Promise<{
+ *   scheduler_enabled: boolean;
+ *   poll_interval_minutes: number;
+ *   latest_run: {
+ *     id: string;
+ *     started_at: string;
+ *     completed_at: string;
+ *     duration_seconds: number;
+ *     source: string;
+ *     status: "success" | "failed";
+ *     events_fetched: number;
+ *     events_inserted: number;
+ *     duplicates_skipped: number;
+ *     error: string | null;
+ *   } | null;
+ *   successful_runs: number;
+ *   failed_runs: number;
+ * }>}
+ */
+export async function fetchIngestionStatus() {
+  const { data } = await api.get("/analytics/intelligence/ingestion-status");
+  return data;
+}
+
+/**
+ * @returns {Promise<{
+ *   enabled: boolean;
+ *   providers: string[];
+ *   last_notification: {
+ *     id: string;
+ *     provider: string;
+ *     event_type: string;
+ *     region: string;
+ *     sent_at: string;
+ *     success: boolean;
+ *     error: string | null;
+ *   } | null;
+ *   notifications_sent: number;
+ *   notifications_failed: number;
+ * }>}
+ */
+export async function fetchNotificationsStatus() {
+  const { data } = await api.get("/analytics/intelligence/notifications");
+  return data;
+}
+
+/**
+ * @returns {Promise<{
+ *   generated_at: string;
+ *   distribution: Array<{ land_cover: string; events: number }>;
+ * }>}
+ */
+export async function fetchLandCoverDistribution() {
+  const { data } = await api.get("/analytics/intelligence/land-cover");
+  return data;
+}
+
+/**
+ * @param {number} [days=30]
+ * @returns {Promise<{ generated_at: string; days: Array<{ date: string; events: number; anomalies: number }> }>}
+ */
+export async function fetchHistoricalDaily(days = 30) {
+  const { data } = await api.get("/analytics/intelligence/history/daily", {
+    params: { days },
+  });
+  return data;
+}
+
+/**
+ * @returns {Promise<Array<{
+ *   region: string;
+ *   events_last_30d: number;
+ *   events_previous_30d: number;
+ *   change_percent: number;
+ *   trend: "increasing" | "stable" | "decreasing";
+ * }>>}
+ */
+export async function fetchHistoricalRegions() {
+  const { data } = await api.get("/analytics/intelligence/history/regions");
+  return data;
+}
+
+/**
+ * @returns {Promise<Array<{
+ *   region: string;
+ *   detections: number;
+ *   average_priority: number;
+ *   highest_severity: string;
+ * }>>}
+ */
+export async function fetchHistoricalHotspots() {
+  const { data } = await api.get("/analytics/intelligence/history/hotspots");
+  return data;
+}
+
+/**
+ * @returns {Promise<{ months: Array<{
+ *   month: string;
+ *   events: number;
+ *   anomalies: number;
+ *   forest_events: number;
+ *   urban_events: number;
+ * }> }>}
+ */
+export async function fetchHistoricalMonthly() {
+  const { data } = await api.get("/analytics/intelligence/history/monthly");
+  return data;
+}
+
+/**
+ * Fetch current regional fire risk scores.
+ * @returns {{ generated_at: string, regions: Array<{
+ *   region: string,
+ *   risk_score: number,
+ *   risk_level: "Low"|"Moderate"|"High"|"Extreme",
+ *   change: "up"|"down"|"stable"|"new",
+ *   breakdown: {
+ *     current_activity: number,
+ *     historical_activity: number,
+ *     forest: number,
+ *     priority: number,
+ *     escalation: number
+ *   }
+ * }> }}
+ */
+export async function fetchRegionalRisk() {
+  const { data } = await api.get("/analytics/intelligence/risk");
+  return data;
+}
+
+/**
+ * Fetch cached regional weather observations.
+ * @returns {{
+ *   generated_at: string,
+ *   provider: string,
+ *   cache_ttl_minutes: number,
+ *   regions: Array<{
+ *     region: string,
+ *     temperature: number,
+ *     humidity: number,
+ *     wind_speed: number,
+ *     wind_direction: number,
+ *     precipitation: number,
+ *     weather_code: number,
+ *     source: string,
+ *     confidence: number,
+ *     updated_at: string
+ *   }>
+ * }}
+ */
+export async function fetchWeather() {
+  const { data } = await api.get("/analytics/intelligence/weather");
+  return data;
+}
+
+/**
+ * Fetch environmental threat assessments for active intelligence events.
+ * @returns {{ generated_at: string, threats: Array<object> }}
+ */
+export async function fetchThreats() {
+  const { data } = await api.get("/analytics/intelligence/threats");
+  return data;
+}
+
+/**
+ * Fetch aggregated threat summary for Command Center / dashboards.
+ */
+export async function fetchThreatSummary() {
+  const { data } = await api.get("/analytics/intelligence/threat-summary");
+  return data;
+}
+
 export function formatEventType(type) {
   return String(type)
     .replace(/_/g, " ")

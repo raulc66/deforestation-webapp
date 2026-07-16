@@ -25,6 +25,7 @@ class ForestEvent(BaseDocument):
     source_id: str = "manual"  # FK to DataSource.id
     detected_at: datetime = Field(default_factory=utcnow)
     status: EventStatus = "open"
+    land_cover_type: str = "unknown"  # classified by LandCoverService at ingestion
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -76,4 +77,5 @@ class ForestEventPublic(BaseModel):
     source_name: str | None = None  # joined from DataSource on read
     detected_at: datetime
     status: EventStatus
+    land_cover_type: str = "unknown"
     metadata: dict[str, Any]

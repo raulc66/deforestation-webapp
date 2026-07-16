@@ -18,6 +18,7 @@ from app.models.forest_event import (
 from app.models.geo import GeoJSONPoint
 from app.repositories.forest_event_repository import ForestEventRepository
 from app.repositories.data_source_repository import DataSourceRepository
+from app.services.land_cover_service import classify as classify_land_cover
 
 logger = logging.getLogger("forestwatch.events")
 
@@ -40,6 +41,7 @@ def _to_public(e: ForestEvent, source_name: str | None = None) -> ForestEventPub
         source_name=source_name,
         detected_at=e.detected_at,
         status=e.status,
+        land_cover_type=e.land_cover_type,
         metadata=e.metadata,
     )
 
@@ -180,6 +182,10 @@ class ForestEventService:
             data["detected_at"] = utcnow()
         else:
             data["detected_at"] = ensure_utc(data["detected_at"])
+        # Always classify — the service is the authority for land_cover_type.
+        data["land_cover_type"] = classify_land_cover(
+            data["latitude"], data["longitude"]
+        )
         event = ForestEvent(**data)
         _sync_location(event)
         event = await self.events.insert(event)

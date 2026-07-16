@@ -32,6 +32,7 @@ DEMO_SOURCES: list[dict] = [
     {"name": "InfoAmazonia News Scraper", "type": "scraper", "provider": "InfoAmazonia"},
     {"name": "Community Field Reports", "type": "manual", "provider": "Internal"},
     {"name": "Sentinel Hub NDVI", "type": "api", "provider": "Copernicus", "status": "paused"},
+    {"name": "NASA FIRMS", "type": "satellite", "provider": "NASA EARTHDATA"},
 ]
 
 
