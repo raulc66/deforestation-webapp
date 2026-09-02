@@ -682,13 +682,33 @@ def _make_activity_chart(days_list: list) -> "Drawing | None":
         return None
 
 
+def _normalize_land_cover_distribution(dist) -> dict:
+    """Accept the analytics list contract or a legacy mapping of class → count."""
+    if isinstance(dist, dict):
+        return {str(k): int(v) for k, v in dist.items()}
+    if isinstance(dist, list):
+        out: dict[str, int] = {}
+        for row in dist:
+            if not isinstance(row, dict):
+                continue
+            key = row.get("land_cover") or row.get("label")
+            if not key:
+                continue
+            out[str(key)] = int(row.get("events") or row.get("count") or 0)
+        return out
+    return {}
+
+
 def _build_land_cover(rd: dict, styles) -> list:
     story = [Paragraph("Land Cover Distribution", styles["FW_H1"])]
     story.append(HRFlowable(width="100%", thickness=1, color=HexColor(_MID_GREEN)))
     story.append(Spacer(1, 0.3 * cm))
 
     lc = rd.get("land_cover") or {}
-    dist = lc.get("distribution") or lc.get("by_class") or {}
+    raw = {}
+    if isinstance(lc, dict):
+        raw = lc.get("distribution") or lc.get("by_class") or {}
+    dist = _normalize_land_cover_distribution(raw)
 
     if dist:
         # Side-by-side: pie chart + table

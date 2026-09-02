@@ -1,266 +1,122 @@
-import { useCallback, useEffect, useState } from "react";
-import { Link } from "react-router-dom";
-import { api } from "@/lib/api";
 import AppLayout from "@/components/layout/AppLayout";
-import AnalyticsSection from "@/components/dashboard/AnalyticsSection";
 import IntelligenceSection from "@/components/intelligence/IntelligenceSection";
 import { useAuth } from "@/context/AuthContext";
-import {
-  ArrowUpRight,
-  Cpu,
-  Bell,
-  BarChart3,
-  Database,
-  Bug,
-  Satellite,
-} from "lucide-react";
-
-const placeholderModules = [
-  {
-    key: "ingestion",
-    title: "Data Ingestion",
-    Icon: Database,
-    blurb: "GLAD, Hansen, MapBiomas — versioned pulls into the lake.",
-  },
-  {
-    key: "scraping",
-    title: "Web Scraping",
-    Icon: Bug,
-    blurb: "NGO reports, gov bulletins, news enrichment.",
-  },
-  {
-    key: "satellite",
-    title: "Satellite Processing",
-    Icon: Satellite,
-    blurb: "Sentinel-2 NDVI deltas with cloud masking.",
-  },
-  {
-    key: "alerting",
-    title: "Alerting",
-    Icon: Bell,
-    blurb: "Multi-channel dispatch with delivery receipts.",
-  },
-  {
-    key: "analytics",
-    title: "Analytics",
-    Icon: BarChart3,
-    blurb: "Time-series rollups & regional benchmarking.",
-  },
-  {
-    key: "ai_predictions",
-    title: "AI Predictions",
-    Icon: Cpu,
-    blurb: "Risk scoring + 30/60/90-day forecasts.",
-  },
-];
+import { useDemo } from "@/context/DemoContext";
+import { useOrganization } from "@/context/OrganizationContext";
+import { useTrial } from "@/context/TrialContext";
+import DemoBudgetBar from "@/components/demo/DemoBudgetBar";
+import DemoGuideRail from "@/components/demo/DemoGuideRail";
+import DemoScenarioSwitcher from "@/components/demo/DemoScenarioSwitcher";
+import DemoConversionCta from "@/components/demo/DemoConversionCta";
+import TrialOnboarding from "@/components/trial/TrialOnboarding";
+import TrialConversionCta from "@/components/trial/TrialConversionCta";
+import { isDemoUser } from "@/lib/demo";
 
 export default function DashboardPage() {
   const { user } = useAuth();
-  const [overview, setOverview] = useState(null);
-  const [alerts, setAlerts] = useState([]);
-  const [alertsLoading, setAlertsLoading] = useState(true);
-  const [alertsError, setAlertsError] = useState(null);
+  const demo = useDemo();
+  const isDemo = demo.isDemo || isDemoUser(user);
 
-  const handleOverviewLoaded = useCallback((nextOverview) => {
-    setOverview(nextOverview);
-  }, []);
+  if (isDemo) {
+    return <DemoDashboard demo={demo} />;
+  }
 
-  useEffect(() => {
-    let alive = true;
-    (async () => {
-      setAlertsLoading(true);
-      setAlertsError(null);
-      try {
-        const { data } = await api.get("/alerts?limit=8");
-        if (alive) setAlerts(data);
-      } catch {
-        if (alive) {
-          setAlertsError("Could not load recent activity.");
-          setAlerts([]);
-        }
-      } finally {
-        if (alive) setAlertsLoading(false);
-      }
-    })();
-    return () => {
-      alive = false;
-    };
-  }, []);
+  return <OperatorDashboard />;
+}
 
-  const totalEvents = overview?.total_events;
-  const headerCount =
-    totalEvents != null ? totalEvents : alertsLoading ? "…" : alerts.length;
+function DemoDashboard({ demo }) {
+  const { status, conversion, exhaustedMessage, resetDemo, setGuideStep, openScenario, recordEvent } = demo;
 
   return (
     <AppLayout>
       <div className="bg-grain min-h-screen">
-        <div className="max-w-7xl mx-auto px-6 lg:px-10 py-8 lg:py-12" data-testid="dashboard-page">
-          {/* Header */}
-          <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-6 mb-10">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-10 py-6 lg:py-10" data-testid="dashboard-page">
+          <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4 mb-6">
             <div>
-              <div className="label-eyebrow mb-3">Overview · Live</div>
-              <h1 className="text-4xl lg:text-5xl font-bold tracking-tight">
-                Welcome, {user?.name?.split(" ")[0] || "Watcher"}.
+              <div className="fw-kicker mb-2">ForestWatch Demo</div>
+              <h1 className="text-3xl lg:text-4xl font-bold tracking-tight">
+                Prioritized forest intelligence
               </h1>
-              <p className="text-[#4a524a] mt-3 max-w-xl">
-                {overview
-                  ? `Monitoring ${overview.total_events} forest events · ${overview.total_area_affected.toLocaleString()} ha tracked.`
-                  : `Loading platform overview…`}
+              <p className="text-[#4a524a] mt-2 max-w-xl text-sm leading-relaxed">
+                You are watching demonstration forests in Romania. Open the queue,
+                investigate a disturbance, review evidence, then simulate an alert.
               </p>
             </div>
-            <Link
-              to="/map"
-              data-testid="open-map-link"
-              className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#2d5a27] text-white rounded-md text-sm font-medium hover:bg-[#21421d] transition-colors self-start"
+            <button
+              type="button"
+              onClick={() => resetDemo()}
+              className="text-sm font-semibold text-[var(--accent)] hover:underline self-start"
+              data-testid="demo-reset"
             >
-              Open live map
-              <ArrowUpRight className="w-4 h-4" strokeWidth={1.7} />
-            </Link>
+              Reset demonstration
+            </button>
           </div>
 
-          <AnalyticsSection onOverviewLoaded={handleOverviewLoaded} />
-
-          <IntelligenceSection />
-
-          {/* Recent activity — legacy alerts feed for map-compatible rows */}
-          <div className="mb-12">
-            <div className="flex items-center justify-between mb-5">
-              <div>
-                <div className="label-eyebrow">Recent activity</div>
-                <h2 className="text-2xl font-semibold tracking-tight mt-1">
-                  Newest detections
-                </h2>
-                <p className="text-sm text-[#7b827b] mt-1">
-                  {headerCount} events in the system
-                </p>
-              </div>
-              <Link
-                to="/map"
-                className="text-sm text-[#2d5a27] font-semibold hover:underline"
-                data-testid="view-all-on-map"
-              >
-                View all on map →
-              </Link>
-            </div>
-
-            {alertsError && (
-              <div
-                className="mb-4 px-4 py-3 rounded-md border border-[#e76f51]/30 bg-[#e76f51]/5 text-sm text-[#9b2226]"
-                role="alert"
-              >
-                {alertsError}
-              </div>
-            )}
-
-            <div className="bg-white border border-[#eaece6] rounded-lg overflow-hidden">
-              <table className="w-full text-sm" data-testid="recent-alerts-table">
-                <thead className="bg-[#f4f5f2] text-[#7b827b]">
-                  <tr>
-                    <th className="text-left font-semibold px-5 py-3">Title</th>
-                    <th className="text-left font-semibold px-5 py-3 hidden md:table-cell">
-                      Region
-                    </th>
-                    <th className="text-left font-semibold px-5 py-3">Severity</th>
-                    <th className="text-right font-semibold px-5 py-3 hidden sm:table-cell">
-                      Area (ha)
-                    </th>
-                    <th className="text-right font-semibold px-5 py-3 hidden md:table-cell">
-                      Detected
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {alertsLoading && (
-                    <tr>
-                      <td colSpan={5} className="px-5 py-6 text-center text-[#7b827b]">
-                        Loading alerts…
-                      </td>
-                    </tr>
-                  )}
-                  {!alertsLoading &&
-                    alerts.map((a) => (
-                      <tr
-                        key={a.id}
-                        className="border-t border-[#eaece6] hover:bg-[#f4f5f2]/60"
-                        data-testid={`alert-row-${a.id}`}
-                      >
-                        <td className="px-5 py-3 font-medium text-[#1a1e1a]">
-                          {a.title}
-                        </td>
-                        <td className="px-5 py-3 text-[#4a524a] hidden md:table-cell">
-                          {a.region}, {a.country}
-                        </td>
-                        <td className="px-5 py-3">
-                          <span className="inline-flex items-center gap-2 text-xs uppercase tracking-wider font-semibold">
-                            <span
-                              className="severity-dot"
-                              style={{
-                                background:
-                                  {
-                                    low: "#e9c46a",
-                                    medium: "#f4a261",
-                                    high: "#e76f51",
-                                    critical: "#9b2226",
-                                  }[a.severity] || "#7b827b",
-                              }}
-                            />
-                            {a.severity}
-                          </span>
-                        </td>
-                        <td className="px-5 py-3 text-right hidden sm:table-cell font-mono text-xs">
-                          {a.area_ha.toLocaleString()}
-                        </td>
-                        <td className="px-5 py-3 text-right text-[#7b827b] hidden md:table-cell font-mono text-xs">
-                          {new Date(a.detected_at).toLocaleDateString()}
-                        </td>
-                      </tr>
-                    ))}
-                  {!alertsLoading && !alertsError && alerts.length === 0 && (
-                    <tr>
-                      <td colSpan={5} className="px-5 py-6 text-center text-[#7b827b]">
-                        No recent detections.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
+          <div className="mb-4">
+            <DemoBudgetBar status={status} />
           </div>
 
-          {/* Placeholder modules */}
-          <div>
-            <div className="label-eyebrow mb-3">Roadmap modules</div>
-            <h2 className="text-2xl font-semibold tracking-tight mb-2">
-              Coming soon
-            </h2>
-            <p className="text-[#4a524a] mb-6 max-w-2xl">
-              Each module ships behind a stable interface — extend independently
-              without touching the rest of the platform.
+          {exhaustedMessage && (
+            <div
+              className="mb-5 px-4 py-3 rounded-md border border-[var(--signal)]/30 bg-[var(--signal)]/5 text-sm text-[var(--signal-strong)]"
+              data-testid="demo-budget-exhausted"
+              role="status"
+            >
+              {exhaustedMessage}
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 xl:grid-cols-4 gap-5 mb-8">
+            <div className="xl:col-span-1 space-y-4">
+              <DemoGuideRail
+                guide={status?.guide ?? []}
+                currentStep={status?.guide_step}
+                onSelect={setGuideStep}
+              />
+              <DemoScenarioSwitcher
+                scenarios={status?.scenarios ?? []}
+                focused={status?.focused_scenario}
+                onSelect={openScenario}
+              />
+              {conversion && (
+                <DemoConversionCta
+                  moment={conversion}
+                  onClick={() => recordEvent("conversion_cta_clicked", { moment: conversion })}
+                />
+              )}
+            </div>
+            <div className="xl:col-span-3 min-w-0">
+              <IntelligenceSection />
+            </div>
+          </div>
+        </div>
+      </div>
+    </AppLayout>
+  );
+}
+
+function OperatorDashboard() {
+  const { status, isExpired } = useTrial();
+  const { currentOrganization } = useOrganization();
+  const organizationName = currentOrganization?.name || "Your organization";
+
+  return (
+    <AppLayout>
+      <div className="bg-grain min-h-screen">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-10 py-6 lg:py-10" data-testid="dashboard-page">
+          <div className="mb-6">
+            <div className="fw-kicker mb-2">Command Center</div>
+            <h1 className="text-3xl lg:text-4xl font-bold tracking-tight" data-testid="operator-org-name">
+              {organizationName}
+            </h1>
+            <p className="text-[#4a524a] mt-2 max-w-xl text-sm leading-relaxed">
+              Prioritized intelligence for forests this organization monitors.
+              Review evidence before acting — satellite disturbance is not a legal finding.
             </p>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-              {placeholderModules.map((m) => (
-                <div
-                  key={m.key}
-                  className="card-flat relative overflow-hidden"
-                  data-testid={`module-card-${m.key}`}
-                >
-                  <div className="absolute top-4 right-4 text-[9px] tracking-[0.22em] uppercase font-bold text-[#c84b31] bg-[#c84b31]/10 px-2 py-1 rounded">
-                    Planned
-                  </div>
-                  <div className="w-10 h-10 rounded-md bg-[#eaece6] flex items-center justify-center mb-4">
-                    <m.Icon className="w-5 h-5 text-[#2d5a27]" strokeWidth={1.5} />
-                  </div>
-                  <h3 className="font-semibold text-lg tracking-tight">
-                    {m.title}
-                  </h3>
-                  <p className="text-sm text-[#4a524a] mt-2 leading-relaxed">
-                    {m.blurb}
-                  </p>
-                </div>
-              ))}
-            </div>
           </div>
+          <TrialOnboarding status={status} />
+          {isExpired && <TrialConversionCta moment="expired" />}
+          <IntelligenceSection />
         </div>
       </div>
     </AppLayout>

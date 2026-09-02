@@ -19,6 +19,7 @@ from app.models.geo import GeoJSONPoint
 from app.repositories.forest_event_repository import ForestEventRepository
 from app.repositories.data_source_repository import DataSourceRepository
 from app.services.land_cover_service import classify as classify_land_cover
+from app.services.forest_context_service import ForestContextService
 
 logger = logging.getLogger("forestwatch.events")
 
@@ -57,9 +58,11 @@ class ForestEventService:
         self,
         events: ForestEventRepository,
         sources: DataSourceRepository | None = None,
+        forest_context_svc: ForestContextService | None = None,
     ):
         self.events = events
         self.sources = sources
+        self.forest_context_svc = forest_context_svc or ForestContextService()
 
     # ---------------------------------------------------------------------
     # Helpers
@@ -186,6 +189,11 @@ class ForestEventService:
         data["land_cover_type"] = classify_land_cover(
             data["latitude"], data["longitude"]
         )
+        data["metadata"] = self.forest_context_svc.enrich_observation_metadata(
+            data.get("metadata"),
+            latitude=data["latitude"],
+            longitude=data["longitude"],
+        )
         event = ForestEvent(**data)
         _sync_location(event)
         event = await self.events.insert(event)
@@ -209,6 +217,13 @@ class ForestEventService:
             new_lat = updates.get("latitude", existing.latitude)
             new_lng = updates.get("longitude", existing.longitude)
             updates["location"] = GeoJSONPoint.from_lat_lng(new_lat, new_lng).model_dump()
+            merged_meta = dict(existing.metadata or {})
+            updates["metadata"] = self.forest_context_svc.enrich_observation_metadata(
+                merged_meta,
+                latitude=new_lat,
+                longitude=new_lng,
+            )
+            updates["land_cover_type"] = classify_land_cover(new_lat, new_lng)
 
         if not updates:
             return await self.get_event(event_id)

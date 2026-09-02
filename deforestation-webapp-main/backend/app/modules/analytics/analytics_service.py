@@ -10,6 +10,8 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from .intelligence_events_service import IntelligenceEventsService
+    from app.repositories.correlation_repository import CorrelationRepository
+    from app.repositories.intelligence_cycle_repository import IntelligenceCycleRepository
 
 from app.core.errors import AppError
 from app.models.base import ensure_utc, utcnow
@@ -17,50 +19,20 @@ from app.models.enums import EVENT_TYPES
 from app.services.land_cover_service import get_dataset_info as _get_gis_dataset_info
 
 from .analytics_repository import VALID_INTERVALS, AnalyticsRepository
+from .anomaly_thresholds import get_anomaly_thresholds
+from .segmented_baseline import parse_segment_key
 
 logger = logging.getLogger("forestwatch.analytics")
 
 SEVERITY_ORDER = ("low", "medium", "high", "critical")
 CONFIDENCE_BUCKETS = ("low", "medium", "high")
 
-# Reliability score heuristic weights for each severity level.
-_SEVERITY_WEIGHTS: dict[str, float] = {
-    "low": 0.2,
-    "medium": 0.5,
-    "high": 0.8,
-    "critical": 1.0,
-}
-
-
-def _reliability_score(
-    average_confidence: float,
-    total_events: int,
-    romania_events: int,
-    severity_distribution: dict[str, int],
-) -> float:
-    """Compute a normalized reliability score in [0.0, 1.0] for one source.
-
-    Formula:
-        0.4 * average_confidence
-      + 0.3 * (romania_events / max(total_events, 1))
-      + 0.3 * severity_weight
-
-    where severity_weight is the weighted mean of per-event severity levels:
-        severity_weight = Σ(sev_count * sev_weight) / max(total_events, 1)
-    """
-    if total_events == 0:
-        return 0.0
-
-    romania_ratio = romania_events / total_events
-
-    weighted_severity = sum(
-        severity_distribution.get(sev, 0) * w
-        for sev, w in _SEVERITY_WEIGHTS.items()
-    )
-    severity_weight = weighted_severity / total_events
-
-    score = 0.4 * average_confidence + 0.3 * romania_ratio + 0.3 * severity_weight
-    return _r(score, 4)
+from app.core.ingestion.source_reliability import (
+    SourceReliabilityInput,
+    compute_baseline_reliability_score,
+    compute_baseline_reliability_score_legacy,
+    firms_reliability_alert_trigger,
+)
 
 
 def _r(value: float | None, places: int = 2) -> float:
@@ -90,6 +62,18 @@ def _confidence_distribution(rows: list[dict] | None) -> dict[str, int]:
 _SEVERITY_RANK: dict[str, int] = {"low": 0, "medium": 1, "high": 2, "critical": 3}
 
 _FIRMS_SOURCE = "NASA FIRMS"
+
+
+def _reliability_score(
+    average_confidence: float,
+    total_events: int,
+    romania_events: int,
+    severity_distribution: dict[str, int],
+) -> float:
+    """Backward-compatible wrapper around generalized reliability scoring."""
+    return compute_baseline_reliability_score_legacy(
+        average_confidence, total_events, romania_events, severity_distribution
+    )
 
 
 def _shape_source_rows(rows: list[dict]) -> list[dict]:
@@ -178,7 +162,11 @@ def _alert_message(
     return "Low fire activity detected in Romania."
 
 
-def _evaluate_alerts(source_data: list[dict]) -> list[dict]:
+def _evaluate_alerts(
+    source_data: list[dict],
+    *,
+    in_scope_event_count: int | None = None,
+) -> list[dict]:
     """Apply heuristic alert rules to shaped source statistics.
 
     Returns a list of **up to two** explicitly-typed alerts:
@@ -201,13 +189,14 @@ def _evaluate_alerts(source_data: list[dict]) -> list[dict]:
 
     total_events = sum(s["total_events"] for s in source_data)
     total_romania = sum(s["romania_events"] for s in source_data)
+    volume_count = total_romania if in_scope_event_count is None else in_scope_event_count
 
     firms = next((s for s in source_data if s["source"] == _FIRMS_SOURCE), None)
     firms_events = firms["total_events"] if firms else 0
     firms_reliability = firms["reliability_score"] if firms else 0.0
     firms_share = firms_events / max(total_events, 1)
 
-    severity = _alert_severity(total_romania)
+    severity = _alert_severity(volume_count)
     sources_with_events = [s["source"] for s in source_data if s["romania_events"] > 0]
     source_breakdown = {s["source"]: s["romania_events"] for s in source_data}
 
@@ -226,7 +215,7 @@ def _evaluate_alerts(source_data: list[dict]) -> list[dict]:
     alerts: list[dict] = []
 
     # A. Volume-based alert
-    if total_romania > 10:
+    if volume_count > 10:
         alerts.append(
             {
                 "type": "volume",
@@ -238,8 +227,8 @@ def _evaluate_alerts(source_data: list[dict]) -> list[dict]:
             }
         )
 
-    # B. Reliability-based alert — uses FIRMS-specific confidence and score.
-    if firms_reliability > 0.65 and firms_share > 0.30:
+    # B. Reliability-based alert — FIRMS-specific trigger isolated in source_reliability.
+    if firms_reliability_alert_trigger(source_data):
         firms_conf = _r(firms["average_confidence"], 3) if firms else avg_conf
         alerts.append(
             {
@@ -346,34 +335,44 @@ def _compute_forest_confidence(row: dict) -> float:
     return _r(weighted / total, 4)
 
 
-def _compute_baselines(rows: list[dict], generated_at: datetime) -> dict:
+def _compute_baselines(
+    rows: list[dict],
+    generated_at: datetime,
+    *,
+    include_incident_category: bool = True,
+) -> dict:
     """Shape raw aggregation rows into the regional baselines response.
 
     ``baseline_events`` is derived from ``baseline_raw`` (total events in the
     preceding 28 days) divided by 4 (number of weeks) then rounded to the
     nearest integer, consistent with the ``int`` type in the response schema.
 
+    Rows are segmented by ``(region, incident_category)``. When
+    ``include_incident_category`` is ``False``, shaped rows omit the category
+    field so wildfire-only oracle artifacts remain byte-identical.
+
     Regions are sorted descending by ``deviation_percent`` so the most
     active regions appear first.
 
-    Each region entry now includes ``forest_confidence``, computed from the
+    Each region entry includes ``forest_confidence``, computed from the
     land-cover distribution of all events in the 35-day window.
     """
     regions = []
     for row in rows:
-        region = row["_id"] if row["_id"] is not None else "Unknown"
+        region, incident_category = parse_segment_key(row["_id"])
         current = int(row.get("current_events", 0))
         baseline_raw = int(row.get("baseline_raw", 0))
         baseline_events = round(baseline_raw / 4)
-        regions.append(
-            {
-                "region": region,
-                "baseline_events": baseline_events,
-                "current_events": current,
-                "deviation_percent": _compute_deviation(current, baseline_events),
-                "forest_confidence": _compute_forest_confidence(row),
-            }
-        )
+        entry = {
+            "region": region,
+            "baseline_events": baseline_events,
+            "current_events": current,
+            "deviation_percent": _compute_deviation(current, baseline_events),
+            "forest_confidence": _compute_forest_confidence(row),
+        }
+        if include_incident_category:
+            entry["incident_category"] = incident_category
+        regions.append(entry)
     regions.sort(key=lambda r: r["deviation_percent"], reverse=True)
     return {"generated_at": generated_at, "regions": regions}
 
@@ -382,8 +381,61 @@ def _compute_baselines(rows: list[dict], generated_at: datetime) -> dict:
 # Anomaly detection — pure, rule-based, no ML
 # ---------------------------------------------------------------------------
 
-_ANOMALY_MIN_EVENTS: int = 5        # minimum current_events for candidacy
-_ANOMALY_MIN_DEVIATION: float = 50.0  # minimum deviation_percent for candidacy
+
+def _evaluate_anomalies(
+    regions: list[dict],
+    generated_at: datetime,
+    *,
+    incident_category: str | None = None,
+) -> dict:
+    """Filter shaped baseline regions for anomaly candidates and score them.
+
+    When ``incident_category`` is set, only rows for that category are
+    evaluated. Per-category thresholds apply (WP2.4); wildfire defaults match
+    the pre-WP2 constants.
+
+    ``regions`` must already be shaped by ``_compute_baselines`` — i.e. each
+    entry must carry ``region``, ``baseline_events``, ``current_events``, and
+    ``deviation_percent``.  No database I/O is performed here.
+
+    Returned anomalies are sorted descending by ``anomaly_score``. Legacy
+    anomaly dicts omit ``incident_category`` for backward compatibility.
+    """
+    if incident_category is not None:
+        from .segmented_baseline import filter_baseline_regions_for_category
+
+        candidate_regions = filter_baseline_regions_for_category(regions, incident_category)
+        thresholds = get_anomaly_thresholds(incident_category)
+    else:
+        candidate_regions = regions
+        thresholds = get_anomaly_thresholds(None)
+
+    min_events = thresholds.min_events
+    min_deviation = thresholds.min_deviation_percent
+
+    anomalies: list[dict] = []
+    for r in candidate_regions:
+        current = r["current_events"]
+        deviation = r["deviation_percent"]
+        if current < min_events or deviation < min_deviation:
+            continue
+        baseline = r["baseline_events"]
+        score = _compute_anomaly_score(current, baseline, deviation)
+        anomalies.append(
+            {
+                "region": r["region"],
+                "baseline_events": baseline,
+                "current_events": current,
+                "deviation_percent": deviation,
+                "anomaly_score": score,
+                "severity": _anomaly_severity(score),
+                "status": "active",
+                # forest_confidence is context-only — anomaly_score is unchanged.
+                "forest_confidence": r.get("forest_confidence", _FOREST_CONFIDENCE_WEIGHTS["unknown"]),
+            }
+        )
+    anomalies.sort(key=lambda a: a["anomaly_score"], reverse=True)
+    return {"generated_at": generated_at, "anomalies": anomalies}
 
 
 def _compute_anomaly_score(
@@ -424,44 +476,6 @@ def _anomaly_severity(score: float) -> str:
     return "low"
 
 
-def _evaluate_anomalies(regions: list[dict], generated_at: datetime) -> dict:
-    """Filter shaped baseline regions for anomaly candidates and score them.
-
-    A region is an anomaly candidate when:
-        current_events  >= _ANOMALY_MIN_EVENTS   (>= 5)
-        deviation_percent >= _ANOMALY_MIN_DEVIATION (>= 50)
-
-    ``regions`` must already be shaped by ``_compute_baselines`` — i.e. each
-    entry must carry ``region``, ``baseline_events``, ``current_events``, and
-    ``deviation_percent``.  No database I/O is performed here.
-
-    Returned anomalies are sorted descending by ``anomaly_score``.
-    """
-    anomalies: list[dict] = []
-    for r in regions:
-        current = r["current_events"]
-        deviation = r["deviation_percent"]
-        if current < _ANOMALY_MIN_EVENTS or deviation < _ANOMALY_MIN_DEVIATION:
-            continue
-        baseline = r["baseline_events"]
-        score = _compute_anomaly_score(current, baseline, deviation)
-        anomalies.append(
-            {
-                "region": r["region"],
-                "baseline_events": baseline,
-                "current_events": current,
-                "deviation_percent": deviation,
-                "anomaly_score": score,
-                "severity": _anomaly_severity(score),
-                "status": "active",
-                # forest_confidence is context-only — anomaly_score is unchanged.
-                "forest_confidence": r.get("forest_confidence", _FOREST_CONFIDENCE_WEIGHTS["unknown"]),
-            }
-        )
-    anomalies.sort(key=lambda a: a["anomaly_score"], reverse=True)
-    return {"generated_at": generated_at, "anomalies": anomalies}
-
-
 def _scope_metrics(totals: dict, confidence_rows: list[dict] | None) -> tuple[int, dict[str, int], float]:
     total = int(totals.get("total_events", 0))
     valid_coords = int(totals.get("valid_coords", 0))
@@ -470,8 +484,25 @@ def _scope_metrics(totals: dict, confidence_rows: list[dict] | None) -> tuple[in
 
 
 class AnalyticsService:
-    def __init__(self, repo: AnalyticsRepository):
+    """Shapes raw aggregation results into frontend-ready JSON."""
+
+    def __init__(
+        self,
+        repo: AnalyticsRepository,
+        *,
+        correlation_repo: "CorrelationRepository | None" = None,
+        cycle_repo: "IntelligenceCycleRepository | None" = None,
+    ) -> None:
         self.repo = repo
+        self._correlation_repo = correlation_repo
+        self._cycle_repo = cycle_repo
+
+    @property
+    def geographic_scope(self) -> str:
+        return self.repo.scope_policy.scope_value
+
+    def _scope_metadata(self) -> dict[str, str]:
+        return {"geographic_scope": self.geographic_scope}
 
     # ------------------------------------------------------------------ #
     # Overview
@@ -601,7 +632,11 @@ class AnalyticsService:
         """Apply heuristic alert rules over per-source aggregation data."""
         rows = await self.repo.by_source()
         source_data = _shape_source_rows(rows)
-        alerts = _evaluate_alerts(source_data)
+        in_scope_count = None
+        if self.geographic_scope != "romania":
+            counts = await self.repo.temporal_scoped_counts(utcnow())
+            in_scope_count = counts["last_7d"]
+        alerts = _evaluate_alerts(source_data, in_scope_event_count=in_scope_count)
         highest = (
             max(alerts, key=lambda a: _SEVERITY_RANK[a["severity"]])["severity"]
             if alerts
@@ -613,6 +648,7 @@ class AnalyticsService:
                 "total_alerts": len(alerts),
                 "highest_severity": highest,
             },
+            **self._scope_metadata(),
         }
 
     # ------------------------------------------------------------------ #
@@ -626,12 +662,13 @@ class AnalyticsService:
         ``_compute_temporal_trend`` helper.
         """
         now = utcnow()
-        counts = await self.repo.temporal_romania_counts(now)
-        return _compute_temporal_trend(
+        counts = await self.repo.temporal_scoped_counts(now)
+        result = _compute_temporal_trend(
             last_24h=counts["last_24h"],
             last_7d=counts["last_7d"],
             previous_7d=counts["previous_7d"],
         )
+        return {**result, **self._scope_metadata()}
 
     # ------------------------------------------------------------------ #
     # Regional baselines — historical reference per Romanian region
@@ -644,7 +681,8 @@ class AnalyticsService:
         """
         now = utcnow()
         rows = await self.repo.regional_baselines(now)
-        return _compute_baselines(rows, generated_at=now)
+        baselines = _compute_baselines(rows, generated_at=now)
+        return {**baselines, **self._scope_metadata()}
 
     # ------------------------------------------------------------------ #
     # Persistent intelligence events
@@ -652,6 +690,8 @@ class AnalyticsService:
     async def reconcile_intelligence_events(
         self,
         intelligence_svc: IntelligenceEventsService,
+        *,
+        intelligence_cycle_id: str | None = None,
     ) -> dict:
         """Run anomaly detection, persist results, resolve stale events.
 
@@ -666,8 +706,63 @@ class AnalyticsService:
         now = utcnow()
         rows = await self.repo.regional_baselines(now)
         baselines = _compute_baselines(rows, generated_at=now)
-        anomaly_result = _evaluate_anomalies(baselines["regions"], generated_at=now)
-        await intelligence_svc.reconcile(anomaly_result["anomalies"], now)
+        from .detector_registry import get_detector_registry
+
+        detections = get_detector_registry().detect_all(baselines["regions"], now)
+        from app.core.config import get_settings as _get_settings
+        from .contextual_detection import supplement_contextual_detections
+
+        settings = _get_settings()
+        detections = await supplement_contextual_detections(
+            self.repo,
+            detections,
+            now,
+            enabled=getattr(settings, "enable_effis_wildfire_context", False),
+        )
+        from .disturbance_detection import supplement_disturbance_detections
+
+        detections = await supplement_disturbance_detections(
+            self.repo,
+            detections,
+            now,
+            enabled=getattr(settings, "enable_forest_disturbance", False),
+        )
+        from .intelligence_cycle import detection_fingerprint, resolve_intelligence_cycle_id
+
+        fingerprint = detection_fingerprint(detections)
+        cycle_id = resolve_intelligence_cycle_id(intelligence_cycle_id, fingerprint)
+        correlation_cycle_id: str | None = None
+
+        if self._correlation_repo is not None:
+            from app.core.config import get_settings
+
+            settings = get_settings()
+            if settings.enable_cross_source_correlation:
+                from .correlation_config import get_correlation_config
+                from .cross_source_correlator import CrossSourceCorrelator
+
+                correlator = CrossSourceCorrelator(get_correlation_config())
+                correlation_results = correlator.correlate(
+                    detections,
+                    now,
+                    geographic_scope=settings.geographic_scope,
+                )
+                correlation_cycle_id = cycle_id
+                await self._correlation_repo.replace_all(
+                    [result.as_dict() for result in correlation_results],
+                    intelligence_cycle_id=cycle_id,
+                )
+
+        await intelligence_svc.reconcile_detections(detections, now)
+
+        if self._cycle_repo is not None:
+            await self._cycle_repo.set_current(
+                intelligence_cycle_id=cycle_id,
+                detection_fingerprint=fingerprint,
+                correlation_cycle_id=correlation_cycle_id,
+                reconciled_at=now,
+            )
+
         return await intelligence_svc.get_events()
 
     # ------------------------------------------------------------------ #
@@ -676,15 +771,18 @@ class AnalyticsService:
     async def get_anomalies(self) -> dict:
         """Detect unusual Romanian region activity against historical baselines.
 
-        Reuses ``repo.regional_baselines`` — no second aggregation is created.
-        The baseline shaping (``_compute_baselines``) and anomaly evaluation
-        (``_evaluate_anomalies``) are both pure functions; all I/O is isolated
-        to the single ``await`` below.
+        Runs registered detectors (Phase 0: wildfire baseline deviation only) and
+        projects results to the legacy anomalies API shape for backward compatibility.
         """
         now = utcnow()
         rows = await self.repo.regional_baselines(now)
         baselines = _compute_baselines(rows, generated_at=now)
-        return _evaluate_anomalies(baselines["regions"], generated_at=now)
+        from .detection_adapters import anomalies_response_from_detections
+        from .detector_registry import get_detector_registry
+
+        detections = get_detector_registry().detect_all(baselines["regions"], now)
+        response = anomalies_response_from_detections(detections, generated_at=now)
+        return {**response, **self._scope_metadata()}
 
     # ------------------------------------------------------------------ #
     # Land-cover distribution

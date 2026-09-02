@@ -40,6 +40,13 @@ class IngestionMetadata(BaseModel):
     source: str
     """Human-readable data source name: 'NASA FIRMS', 'CSV', 'GFW', etc."""
 
+    provider_id: str | None = None
+    """Stable provider identifier (e.g. ``nasa.firms``)."""
+
+    dataset_id: str | None = None
+    dataset_version: str | None = None
+    provenance_label: str | None = None
+
     source_event_id: str | None
     """Provider-specific row / feature identifier, or None when unavailable."""
 
@@ -64,6 +71,10 @@ def build_ingestion_metadata(
     confidence: float | None,
     severity: str | None,
     ingestion_timestamp: datetime | None = None,
+    provider_id: str | None = None,
+    dataset_id: str | None = None,
+    dataset_version: str | None = None,
+    provenance_label: str | None = None,
 ) -> IngestionMetadata:
     """Construct an IngestionMetadata instance with a UTC timestamp.
 
@@ -80,6 +91,10 @@ def build_ingestion_metadata(
     """
     return IngestionMetadata(
         source=source,
+        provider_id=provider_id,
+        dataset_id=dataset_id,
+        dataset_version=dataset_version,
+        provenance_label=provenance_label,
         source_event_id=source_event_id,
         ingestion_timestamp=ingestion_timestamp or datetime.now(timezone.utc),
         is_romania=is_romania,

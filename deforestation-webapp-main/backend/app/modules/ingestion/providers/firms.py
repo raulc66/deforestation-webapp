@@ -31,6 +31,8 @@ from typing import Any
 
 from app.core.geography.romania import ROMANIA_BBOX, is_romania_event
 from app.core.ingestion.ingestion_metadata import build_ingestion_metadata
+from app.core.ingestion.provider_contract import IngestionProvider
+from app.core.ecosystem.incident_categories import IncidentCategory
 from app.models.forest_event import ForestEventCreate
 from app.modules.ingestion.persist import persist_import_event
 from app.repositories.forest_event_repository import ForestEventRepository
@@ -43,6 +45,9 @@ logger = logging.getLogger("forestwatch.ingestion.firms")
 # ---------------------------------------------------------------------------
 
 FIRMS_SOURCE_NAME = "NASA FIRMS"
+FIRMS_PROVIDER_ID = "nasa.firms"
+FIRMS_DATASET_ID = "firms.viirs_snpp_nrt"
+FIRMS_DATASET_VERSION = "viirs-snpp-nrt-v1"
 
 # VIIRS S-NPP NRT product, global area query, last 1 day.
 # Full format: /api/area/csv/{key}/VIIRS_SNPP_NRT/{W,S,E,N}/{days}
@@ -203,7 +208,7 @@ def _country_region_from_event(lat: float, lng: float) -> tuple[str, str]:
 # Provider
 # ---------------------------------------------------------------------------
 
-class FIRMSProvider:
+class FIRMSProvider(IngestionProvider):
     """NASA FIRMS active fire data provider.
 
     Designed to be instantiated per-run (stateless across calls).
@@ -213,6 +218,38 @@ class FIRMSProvider:
         self._api_key: str = (
             api_key if api_key is not None else os.environ.get("FIRMS_API_KEY", "")
         ).strip()
+        self._last_execution_mode: str | None = None
+
+    @property
+    def last_execution_mode(self) -> str | None:
+        return self._last_execution_mode
+
+    @property
+    def source_name(self) -> str:
+        return FIRMS_SOURCE_NAME
+
+    @property
+    def provider_id(self) -> str:
+        return FIRMS_PROVIDER_ID
+
+    @property
+    def supported_incident_categories(self) -> tuple[str, ...]:
+        return (IncidentCategory.WILDFIRE.value,)
+
+    def describe(self) -> dict[str, Any]:
+        access = "live" if self._api_key else "fixture"
+        return {
+            "source": FIRMS_SOURCE_NAME,
+            "provider_id": FIRMS_PROVIDER_ID,
+            "dataset_id": FIRMS_DATASET_ID,
+            "dataset_version": FIRMS_DATASET_VERSION,
+            "temporal_resolution": "near_real_time",
+            "geographic_coverage": "Global (VIIRS SNPP NRT)",
+            "spatial_model": "point_detection",
+            "update_frequency": "daily_poll",
+            "license": "NASA FIRMS open data policy",
+            "live_access_status": access,
+        }
 
     # ------------------------------------------------------------------
     # fetch — I/O layer
@@ -229,6 +266,7 @@ class FIRMSProvider:
                 "FIRMS_API_KEY not configured — using mock dataset (%d records)",
                 len(MOCK_FIRMS_DATA),
             )
+            self._last_execution_mode = "fixture"
             return list(MOCK_FIRMS_DATA)
 
         url = f"{_FIRMS_BASE}/{self._api_key}/{_PRODUCT}/{_WORLD_BBOX}/{_DAYS}"
@@ -236,9 +274,11 @@ class FIRMSProvider:
         loop = asyncio.get_event_loop()
         try:
             raw_csv = await loop.run_in_executor(None, self._http_get, url)
+            self._last_execution_mode = "live"
             return self._parse_csv(raw_csv)
         except Exception as exc:
             logger.error("FIRMS fetch failed: %s — falling back to mock data", exc)
+            self._last_execution_mode = "fixture"
             return list(MOCK_FIRMS_DATA)
 
     @staticmethod
@@ -285,6 +325,10 @@ class FIRMSProvider:
             is_romania=romania_flag,
             confidence=confidence,
             severity=severity,
+            provider_id=FIRMS_PROVIDER_ID,
+            dataset_id=FIRMS_DATASET_ID,
+            dataset_version=FIRMS_DATASET_VERSION,
+            provenance_label="nasa_firms_viirs",
         )
 
         return ForestEventCreate(

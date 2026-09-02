@@ -6,7 +6,11 @@ documents. The service layer shapes them into frontend-ready JSON.
 from datetime import datetime, timedelta, timezone
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
+from app.core.config import get_settings
+from app.core.geography.geographic_scope import GeographicScopePolicy, geographic_scope_policy_from_value
 from app.core.geography.romania import is_romania_expression
+
+from .segmented_baseline import incident_category_add_fields_stage
 
 
 VALID_INTERVALS = {"day", "week", "month"}
@@ -21,6 +25,11 @@ def _valid_coords_condition() -> dict:
             {"$lte": [{"$ifNull": ["$longitude", 999]}, 180]},
         ]
     }
+
+
+def _valid_coords_match_stage() -> dict:
+    """$match stage: aggregation comparisons must sit under $expr, not as query operators."""
+    return {"$match": {"$expr": _valid_coords_condition()}}
 
 
 def _confidence_bucket_switch() -> dict:
@@ -72,9 +81,25 @@ class AnalyticsRepository:
     collection_name = "forest_events"
     import_jobs_collection_name = "import_jobs"
 
-    def __init__(self, db: AsyncIOMotorDatabase):
+    def __init__(
+        self,
+        db: AsyncIOMotorDatabase,
+        *,
+        scope_policy: GeographicScopePolicy | None = None,
+    ):
         self.col = db[self.collection_name]
         self.import_jobs = db[self.import_jobs_collection_name]
+        if scope_policy is not None:
+            self._scope = scope_policy
+        else:
+            self._scope = geographic_scope_policy_from_value(get_settings().geographic_scope)
+
+    @property
+    def scope_policy(self) -> GeographicScopePolicy:
+        return self._scope
+
+    def _scoped_match(self) -> dict:
+        return self._scope.mongo_match_filter()
 
     # ------------------------------------------------------------------ #
     # Overview - totals & averages
@@ -266,30 +291,20 @@ class AnalyticsRepository:
     # ------------------------------------------------------------------ #
     # Temporal Romania counts — rolling window aggregation
     # ------------------------------------------------------------------ #
-    async def temporal_romania_counts(self, now: datetime) -> dict:
-        """Return Romania event counts for three rolling windows.
-
-        All windows filter on ``metadata.ingestion.is_romania == True`` so
-        that only events enriched with the standardized ingestion metadata
-        block are included.
-
-        Returns a dict with keys:
-            last_24h    — events in the 24 hours ending at *now*
-            last_7d     — events in the 7 days ending at *now*
-            previous_7d — events in the 7-day window immediately before last_7d
-        """
+    async def temporal_scoped_counts(self, now: datetime) -> dict:
+        """Return in-scope event counts for three rolling windows."""
         cutoff_24h = now - timedelta(hours=24)
         cutoff_7d = now - timedelta(days=7)
         cutoff_14d = now - timedelta(days=14)
 
+        scope_match = self._scoped_match()
+        base_match: dict = {
+            "detected_at": {"$gte": cutoff_14d},
+            **scope_match,
+        }
+
         pipeline = [
-            # Pre-filter to the widest window (14 days) to minimise scanned docs.
-            {
-                "$match": {
-                    "metadata.ingestion.is_romania": True,
-                    "detected_at": {"$gte": cutoff_14d},
-                }
-            },
+            {"$match": base_match},
             {
                 "$facet": {
                     "last_24h": [
@@ -323,26 +338,17 @@ class AnalyticsRepository:
             }
         return {"last_24h": 0, "last_7d": 0, "previous_7d": 0}
 
+    async def temporal_romania_counts(self, now: datetime) -> dict:
+        """Backward-compatible alias — delegates to :meth:`temporal_scoped_counts`."""
+        return await self.temporal_scoped_counts(now)
+
     # ------------------------------------------------------------------ #
     # Regional baselines — per-region current vs. historical averages
     # ------------------------------------------------------------------ #
     async def regional_baselines(self, now: datetime) -> list[dict]:
-        """Aggregate per-region Romania event counts for two time windows.
+        """Aggregate per-region, per-category event counts for two time windows.
 
-        Returns one document per distinct ``region`` value, each containing:
-
-            current_events  — count in the 7 days ending at *now*
-            baseline_raw    — count in the 28 days immediately before that
-                              window (weeks -1 through -4)
-            lc_*            — land-cover counts across both windows, used by the
-                              service layer to compute per-region forest_confidence.
-
-        Dividing ``baseline_raw`` by 4 in the service layer yields the average
-        weekly baseline.
-
-        Only events with ``metadata.ingestion.is_romania == True`` are counted.
-        The ``now - 35d`` pre-filter limits scanned documents to the relevant
-        5-week horizon.
+        Population is restricted by the repository :class:`GeographicScopePolicy`.
         """
         cutoff_7d = now - timedelta(days=7)
         cutoff_35d = now - timedelta(days=35)
@@ -366,16 +372,29 @@ class AnalyticsRepository:
                 }
             }
 
+        scope_match = self._scoped_match()
+        contextual_exclusion = {
+            "$or": [
+                {"metadata.ingestion.provider_id": {"$exists": False}},
+                {"metadata.ingestion.provider_id": None},
+                {"metadata.ingestion.provider_id": {"$ne": "effis.wildfire_context"}},
+            ]
+        }
         pipeline = [
             {
                 "$match": {
-                    "metadata.ingestion.is_romania": True,
                     "detected_at": {"$gte": cutoff_35d},
+                    **scope_match,
+                    **contextual_exclusion,
                 }
             },
+            incident_category_add_fields_stage(),
             {
                 "$group": {
-                    "_id": "$region",
+                    "_id": {
+                        "region": "$region",
+                        "incident_category": "$_segment_incident_category",
+                    },
                     "current_events": {
                         "$sum": {
                             "$cond": [{"$gte": ["$detected_at", cutoff_7d]}, 1, 0]
@@ -395,9 +414,84 @@ class AnalyticsRepository:
                     "lc_unknown":      _lc_sum("unknown"),
                 }
             },
-            {"$sort": {"_id": 1}},
+            {"$sort": {"_id.region": 1, "_id.incident_category": 1}},
         ]
         return [doc async for doc in self.col.aggregate(pipeline)]
+
+    async def list_effis_context_events(
+        self,
+        now: datetime,
+        *,
+        window_days: int | None = None,
+    ) -> list[dict]:
+        """Recent EFFIS burned-area context events within configured scope."""
+        from app.core.config import get_settings
+
+        settings = get_settings()
+        days = window_days if window_days is not None else settings.effis_context_window_days
+        cutoff = now - timedelta(days=days)
+        query = {
+            "metadata.ingestion.provider_id": "effis.wildfire_context",
+            "detected_at": {"$gte": cutoff},
+            **self._scoped_match(),
+        }
+        projection = {
+            "_id": 1,
+            "latitude": 1,
+            "longitude": 1,
+            "severity": 1,
+            "confidence": 1,
+            "detected_at": 1,
+            "region": 1,
+            "country": 1,
+            "metadata": 1,
+        }
+        cursor = self.col.find(query, projection).sort("detected_at", -1).limit(500)
+        docs = [doc async for doc in cursor]
+        for doc in docs:
+            if doc.get("_id") is not None:
+                doc["id"] = str(doc["_id"])
+        return docs
+
+    async def list_forest_disturbance_events(
+        self,
+        now: datetime,
+        *,
+        window_days: int | None = None,
+    ) -> list[dict]:
+        """Recent forest disturbance observations within configured scope."""
+        from app.core.config import get_settings
+
+        settings = get_settings()
+        days = (
+            window_days
+            if window_days is not None
+            else settings.forest_disturbance_window_days
+        )
+        cutoff = now - timedelta(days=days)
+        query = {
+            "metadata.ingestion.provider_id": "gfw.integrated_alerts",
+            "detected_at": {"$gte": cutoff},
+            **self._scoped_match(),
+        }
+        projection = {
+            "_id": 1,
+            "latitude": 1,
+            "longitude": 1,
+            "severity": 1,
+            "confidence": 1,
+            "detected_at": 1,
+            "region": 1,
+            "country": 1,
+            "affected_area_ha": 1,
+            "metadata": 1,
+        }
+        cursor = self.col.find(query, projection).sort("detected_at", -1).limit(500)
+        docs = [doc async for doc in cursor]
+        for doc in docs:
+            if doc.get("_id") is not None:
+                doc["id"] = str(doc["_id"])
+        return docs
 
     # ------------------------------------------------------------------ #
     # Land-cover distribution — global per-type event counts
@@ -419,6 +513,66 @@ class AnalyticsRepository:
             {"$sort": {"events": -1, "_id": 1}},
         ]
         return [doc async for doc in self.col.aggregate(pipeline)]
+
+    async def region_event_centroids(self) -> dict[str, tuple[float, float]]:
+        """Average lat/lng of in-scope events per administrative region."""
+        scope_match = self._scoped_match()
+        pipeline: list[dict] = []
+        if scope_match:
+            pipeline.append({"$match": scope_match})
+        pipeline.extend([
+            _valid_coords_match_stage(),
+            {
+                "$group": {
+                    "_id": "$region",
+                    "latitude": {"$avg": "$latitude"},
+                    "longitude": {"$avg": "$longitude"},
+                    "events": {"$sum": 1},
+                }
+            },
+        ])
+        centroids: dict[str, tuple[float, float]] = {}
+        async for doc in self.col.aggregate(pipeline):
+            region = doc.get("_id")
+            if not region:
+                continue
+            centroids[str(region)] = (
+                round(float(doc["latitude"]), 6),
+                round(float(doc["longitude"]), 6),
+            )
+        return centroids
+
+    async def list_scoped_events_for_map(self, *, limit: int = 500) -> list[dict]:
+        """Recent in-scope events with fields required for map serialization."""
+        scope_match = self._scoped_match()
+        query = {
+            "latitude": {"$gte": -90, "$lte": 90},
+            "longitude": {"$gte": -180, "$lte": 180},
+            **scope_match,
+        }
+        projection = {
+            "_id": 1,
+            "latitude": 1,
+            "longitude": 1,
+            "severity": 1,
+            "confidence": 1,
+            "detected_at": 1,
+            "region": 1,
+            "event_type": 1,
+            "land_cover_type": 1,
+            "source_id": 1,
+            "metadata": 1,
+        }
+        cursor = (
+            self.col.find(query, projection)
+            .sort("detected_at", -1)
+            .limit(limit)
+        )
+        return [doc async for doc in cursor]
+
+    async def list_romania_events_for_map(self, *, limit: int = 500) -> list[dict]:
+        """Backward-compatible alias for map serialization."""
+        return await self.list_scoped_events_for_map(limit=limit)
 
     async def data_quality_import_totals(self) -> dict | None:
         """Sum ingestion attempts and skipped rows across all ImportJobs."""

@@ -395,15 +395,16 @@ class TestAnalyticsServiceReconcile:
 
     def _intel_svc_mock(self, events_result: dict | None = None) -> MagicMock:
         svc = MagicMock()
+        svc.reconcile_detections = AsyncMock(return_value=None)
         svc.reconcile = AsyncMock(return_value=None)
         svc.get_events = AsyncMock(return_value=events_result or {"active": [], "resolved": []})
         return svc
 
-    def test_reconcile_called_on_intelligence_svc(self):
+    def test_reconcile_detections_called_on_intelligence_svc(self):
         analytics_svc = self._analytics_svc_with_rows([])
         intel_svc = self._intel_svc_mock()
         _run(analytics_svc.reconcile_intelligence_events(intel_svc))
-        intel_svc.reconcile.assert_called_once()
+        intel_svc.reconcile_detections.assert_called_once()
 
     def test_get_events_called_on_intelligence_svc(self):
         analytics_svc = self._analytics_svc_with_rows([])
@@ -418,19 +419,22 @@ class TestAnalyticsServiceReconcile:
         result = _run(analytics_svc.reconcile_intelligence_events(intel_svc))
         assert result == expected
 
-    def test_reconcile_passed_list_of_anomalies(self):
-        analytics_svc = self._analytics_svc_with_rows([])
-        intel_svc = self._intel_svc_mock()
-        _run(analytics_svc.reconcile_intelligence_events(intel_svc))
-        args = intel_svc.reconcile.call_args[0]
-        anomalies_arg = args[0]
-        assert isinstance(anomalies_arg, list)
+    def test_reconcile_detections_passed_detection_list(self):
+        from app.modules.analytics.detection_contract import Detection
 
-    def test_reconcile_passed_datetime_now(self):
         analytics_svc = self._analytics_svc_with_rows([])
         intel_svc = self._intel_svc_mock()
         _run(analytics_svc.reconcile_intelligence_events(intel_svc))
-        now_arg = intel_svc.reconcile.call_args[0][1]
+        detections_arg = intel_svc.reconcile_detections.call_args[0][0]
+        assert isinstance(detections_arg, list)
+        if detections_arg:
+            assert isinstance(detections_arg[0], Detection)
+
+    def test_reconcile_detections_passed_datetime_now(self):
+        analytics_svc = self._analytics_svc_with_rows([])
+        intel_svc = self._intel_svc_mock()
+        _run(analytics_svc.reconcile_intelligence_events(intel_svc))
+        now_arg = intel_svc.reconcile_detections.call_args[0][1]
         assert isinstance(now_arg, datetime)
 
     def test_regional_baselines_called_once(self):

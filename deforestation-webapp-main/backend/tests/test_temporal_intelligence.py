@@ -25,6 +25,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from app.core.geography.geographic_scope import GeographicScope, GeographicScopePolicy
 from app.modules.analytics.analytics_service import (
     AnalyticsService,
     _compute_temporal_trend,
@@ -36,9 +37,10 @@ from app.modules.analytics.analytics_service import (
 # ---------------------------------------------------------------------------
 
 def _service(counts: dict) -> AnalyticsService:
-    """Build an AnalyticsService with temporal_romania_counts mocked."""
+    """Build an AnalyticsService with temporal_scoped_counts mocked."""
     repo = MagicMock()
-    repo.temporal_romania_counts = AsyncMock(return_value=counts)
+    repo.temporal_scoped_counts = AsyncMock(return_value=counts)
+    repo.scope_policy = GeographicScopePolicy(GeographicScope.ROMANIA)
     return AnalyticsService(repo)
 
 
@@ -205,18 +207,19 @@ class TestRomaniaFiltering:
     def test_repo_called_with_now_datetime(self):
         """get_temporal_summary() must pass a UTC datetime to the repo."""
         repo = MagicMock()
-        repo.temporal_romania_counts = AsyncMock(return_value=_counts())
+        repo.temporal_scoped_counts = AsyncMock(return_value=_counts())
+        repo.scope_policy = GeographicScopePolicy(GeographicScope.ROMANIA)
         svc = AnalyticsService(repo)
         asyncio.run(svc.get_temporal_summary())
-        repo.temporal_romania_counts.assert_called_once()
-        call_arg = repo.temporal_romania_counts.call_args[0][0]
+        repo.temporal_scoped_counts.assert_called_once()
+        call_arg = repo.temporal_scoped_counts.call_args[0][0]
         assert isinstance(call_arg, datetime)
 
     def test_only_romania_flagged_events_counted(self):
         """Service returns the counts provided by the repo without modification.
 
         The actual is_romania filtering is enforced inside
-        AnalyticsRepository.temporal_romania_counts; the service must pass
+        AnalyticsRepository.temporal_scoped_counts; the service must pass
         through whatever the repo returns.
         """
         body = asyncio.run(_service(_counts(last_24h=3, last_7d=7, previous_7d=4)).get_temporal_summary())
@@ -239,7 +242,7 @@ class TestGetTemporalSummary:
     def test_response_keys(self):
         body = asyncio.run(_service(_counts()).get_temporal_summary())
         assert set(body.keys()) == {
-            "last_24h", "last_7d", "previous_7d", "change_percent", "trend"
+            "last_24h", "last_7d", "previous_7d", "change_percent", "trend", "geographic_scope"
         }
 
     def test_increasing_scenario(self):

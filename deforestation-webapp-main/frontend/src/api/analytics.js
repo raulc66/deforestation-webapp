@@ -120,18 +120,30 @@ export async function fetchIntelligenceSummary() {
 }
 
 /**
- * @returns {Promise<{ events: Array<{
- *   id: string;
- *   latitude: number;
- *   longitude: number;
- *   severity: string;
- *   region: string;
- *   detected_at: string | null;
- *   source: string;
- * }> }>}
+ * Generic unscoped forest-event map retrieval.
+ * Intelligence dashboards must use fetchMapOverlay() for GEOGRAPHIC_SCOPE-aware markers.
+ * @returns {Promise<{ events: Array<object> }>}
  */
 export async function fetchMapEvents() {
   const { data } = await api.get("/events/map");
+  return data;
+}
+
+/**
+ * Scoped intelligence map overlay — authoritative contract for IntelligenceMap.
+ * Applies backend GEOGRAPHIC_SCOPE, authoritative coordinates, and centroid policy.
+ * @returns {Promise<{
+ *   generated_at: string;
+ *   geographic_scope: string;
+ *   allow_romania_centroid_fallback: boolean;
+ *   region_centroids: Record<string, { latitude: number; longitude: number }>;
+ *   forest_events: Array<object>;
+ *   anomalies: Array<object>;
+ *   intelligence_events: Array<object>;
+ * }>}
+ */
+export async function fetchMapOverlay() {
+  const { data } = await api.get("/analytics/intelligence/map-overlay");
   return data;
 }
 
@@ -326,6 +338,22 @@ export async function fetchThreats() {
  */
 export async function fetchThreatSummary() {
   const { data } = await api.get("/analytics/intelligence/threat-summary");
+  return data;
+}
+
+/**
+ * Fetch Command Center snapshot including bounded intelligence evidence.
+ */
+export async function fetchCommandCenter() {
+  const { data } = await api.get("/analytics/intelligence/command-center");
+  return data;
+}
+
+/**
+ * Fetch bounded operational status for multi-region validation.
+ */
+export async function fetchOperationalStatus() {
+  const { data } = await api.get("/analytics/intelligence/operational-status");
   return data;
 }
 

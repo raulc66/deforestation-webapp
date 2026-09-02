@@ -1,0 +1,25 @@
+{
+  "anomalies": [
+    {
+      "anomaly_score": 0.648,
+      "baseline_events": 1,
+      "current_events": 6,
+      "deviation_percent": 500.0,
+      "forest_confidence": 1.0,
+      "region": "Bacău",
+      "severity": "high",
+      "status": "active"
+    },
+    {
+      "anomaly_score": 0.64,
+      "baseline_events": 1,
+      "current_events": 5,
+      "deviation_percent": 400.0,
+      "forest_confidence": 1.0,
+      "region": "Suceava",
+      "severity": "high",
+      "status": "active"
+    }
+  ],
+  "generated_at": "2026-06-15T12:00:00+00:00"
+}

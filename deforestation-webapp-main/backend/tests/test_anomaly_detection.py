@@ -59,9 +59,18 @@ def _region(
     }
 
 
-def _raw_row(region: str, current: int, baseline_raw: int) -> dict:
+def _raw_row(
+    region: str,
+    current: int,
+    baseline_raw: int,
+    incident_category: str = "wildfire",
+) -> dict:
     """Raw aggregation row as returned by repo.regional_baselines()."""
-    return {"_id": region, "current_events": current, "baseline_raw": baseline_raw}
+    return {
+        "_id": {"region": region, "incident_category": incident_category},
+        "current_events": current,
+        "baseline_raw": baseline_raw,
+    }
 
 
 def _service(raw_rows: list[dict]) -> AnalyticsService:
@@ -342,7 +351,7 @@ class TestGetAnomalies:
 
     def test_response_keys(self):
         body = _run(_service([]))
-        assert set(body.keys()) == {"generated_at", "anomalies"}
+        assert set(body.keys()) == {"generated_at", "anomalies", "geographic_scope"}
 
     def test_generated_at_is_datetime(self):
         body = _run(_service([]))

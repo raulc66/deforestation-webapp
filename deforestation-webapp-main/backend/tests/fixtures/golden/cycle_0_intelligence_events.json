@@ -1,0 +1,45 @@
+{
+  "active": [
+    {
+      "current_score": 0.648,
+      "detection_count": 1,
+      "escalation_level": "normal",
+      "event_type": "anomaly",
+      "first_detected_at": "2026-06-15T12:00:00+00:00",
+      "incident_category": "wildfire",
+      "last_detected_at": "2026-06-15T12:00:00+00:00",
+      "metadata": {
+        "baseline_events": 1,
+        "current_events": 6,
+        "deviation_percent": 500.0
+      },
+      "previous_score": null,
+      "priority_score": 0.5598,
+      "region": "Bacău",
+      "severity": "high",
+      "status": "active",
+      "trend": "new"
+    },
+    {
+      "current_score": 0.64,
+      "detection_count": 1,
+      "escalation_level": "normal",
+      "event_type": "anomaly",
+      "first_detected_at": "2026-06-15T12:00:00+00:00",
+      "incident_category": "wildfire",
+      "last_detected_at": "2026-06-15T12:00:00+00:00",
+      "metadata": {
+        "baseline_events": 1,
+        "current_events": 5,
+        "deviation_percent": 400.0
+      },
+      "previous_score": null,
+      "priority_score": 0.559,
+      "region": "Suceava",
+      "severity": "high",
+      "status": "active",
+      "trend": "new"
+    }
+  ],
+  "resolved": []
+}

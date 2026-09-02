@@ -33,6 +33,8 @@ DEMO_SOURCES: list[dict] = [
     {"name": "Community Field Reports", "type": "manual", "provider": "Internal"},
     {"name": "Sentinel Hub NDVI", "type": "api", "provider": "Copernicus", "status": "paused"},
     {"name": "NASA FIRMS", "type": "satellite", "provider": "NASA EARTHDATA"},
+    {"name": "EEA Air Quality", "type": "api", "provider": "European Environment Agency"},
+    {"name": "Copernicus EMS Rapid Mapping", "type": "api", "provider": "Copernicus EMS"},
 ]
 
 

@@ -2,19 +2,24 @@
 
 ## 1. Purpose
 
-This document defines the phased evolution of ForestWatch toward multi-domain
-environmental intelligence. Phases are ordered so that platform capabilities precede
-the domains that depend on them.
+This document defines the phased evolution of the ForestWatch **implementation
+architecture** toward multi-category **forest intelligence**. Phases are ordered so that
+platform capabilities precede the forest incident categories that depend on them.
+
+**Commercial product scope** is the Forest Intelligence Platform defined in
+`docs/business/BUSINESS_STRATEGY.md` and `docs/business/PRODUCT_STRATEGY.md`. This
+roadmap governs engineering phases. It does not authorize expansion of the commercial
+product beyond forest ecosystems.
 
 ## 2. Phase Ordering Principle
 
-Engine generalization shall precede domain onboarding. New observation data shall not
-enter the shared pipeline until the pipeline is capable of segmenting and reconciling it
-without corrupting existing domains.
+Engine generalization shall precede forest category onboarding. New observation data shall
+not enter the shared pipeline until the pipeline is capable of segmenting and reconciling
+it without corrupting existing categories.
 
 ## 3. Phase 0 — Engine Generalization
 
-Phase 0 establishes the platform capabilities required for multi-domain operation.
+Phase 0 establishes the platform capabilities required for multi-category operation.
 
 Scope:
 
@@ -27,7 +32,7 @@ Scope:
 - Single-reconciler guarantee.
 - Idempotent migration aligning existing records to canonical identity.
 
-Phase 0 introduces no new domain and no new observation source. Existing domain
+Phase 0 introduces no new forest category and no new observation source. Existing category
 behavior shall be preserved.
 
 ## 4. Phase 1 — Spatial Engine Generalization
@@ -71,39 +76,67 @@ Scope:
 
 Phase 3 depends on Phase 2.
 
-## 7. Future Domains
+## 7. Future Forest Incident Categories (Product Scope)
 
-The following domains shall be onboarded through the domain plug-in architecture
-without redesign of the Intelligence Engine:
+The following forest incident categories are planned for onboarding through the domain
+plug-in architecture without redesign of the Intelligence Engine. They are **Forest
+Intelligence Platform product scope**:
 
-- Wildlife Monitoring
-- Biodiversity
-- Pollution
-- Water Quality
-- Flood Intelligence
-- Drought Monitoring
-- Landslides
-- Carbon Monitoring
-- Habitat Fragmentation
+- Wildfire and forest fire intelligence *(implemented; generalized in Phase 0)*
+- Forest loss, illegal logging, and land-use change *(Phase 2)*
+- Tree theft
+- Forest degradation
+- Storm damage to forest estate
+- Pest outbreaks and forest diseases
+- Protected-area violations within forest contexts
+- Habitat fragmentation
+- Reforestation monitoring
+- Biodiversity within forests
+- Carbon forests and forest carbon compliance
+- Forest compliance and forest ecosystem health
+- Wildlife monitoring within forest ecosystems
 
-## 8. Future Platform Layers
+Onboarding sequence for each category follows
+`docs/architecture/06-domain-plugin-architecture.md`.
 
-The following layers are recognized as future extensions of the platform. They are
-additive to the architecture and shall not require redesign of the Intelligence Engine:
+## 8. Architectural Extension Capability (Not Product Scope)
+
+The domain-independent intelligence engine **can** onboard incident categories outside
+forest ecosystems without engine redesign. That extensibility is an implementation
+property, not a commercial commitment.
+
+The following are **not** ForestWatch product scope. They are listed only to document
+engine extensibility. They may belong to separate future products:
+
+- Water quality and general water management
+- Air quality and urban pollution
+- Marine environments and oceans
+- General flood intelligence outside forest context
+- General drought and climate intelligence outside the forest ecosystem
+- Non-forest pollution monitoring
+
+ForestWatch shall not commercialize these categories without explicit product and
+architecture strategy review.
+
+## 9. Future Platform Layers
+
+The following layers are recognized as future extensions of the implementation
+architecture. They are additive and shall not require redesign of the Intelligence Engine:
 
 - Satellite change-detection detectors.
 - Model-assisted detection.
 - External government data providers.
-- Cross-domain correlation over Intelligence Events.
+- Cross-category correlation over Intelligence Events *(within forest scope)*.
 - Finer spatial-key strategies for point and linear phenomena.
-- Multi-tenant isolation and domain-scoped authorization.
+- Multi-tenant isolation and category-scoped authorization.
 - Pipeline observability and stage-level metrics.
 
-## 9. Dependency Summary
+## 10. Dependency Summary
 
 ```
 Phase 0 ─┬─► Phase 2 ─► Phase 3
 Phase 1 ─┘
-Future Domains ──► depend on Phase 0 and Phase 1
-Future Platform Layers ──► additive
+Future Forest Categories (§7) ──► depend on Phase 0 and Phase 1
+Architectural Extension (§8) ──► engine capability only; not product roadmap
+Future Platform Layers (§9) ──► additive
 ```

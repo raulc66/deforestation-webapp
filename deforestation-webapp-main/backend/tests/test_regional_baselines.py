@@ -38,9 +38,18 @@ from app.modules.analytics.analytics_service import (
 _NOW = datetime(2026, 6, 13, 15, 0, 0, tzinfo=timezone.utc)
 
 
-def _row(region: str, current: int, baseline_raw: int) -> dict:
+def _row(
+    region: str,
+    current: int,
+    baseline_raw: int,
+    incident_category: str = "wildfire",
+) -> dict:
     """Build a raw aggregation row as returned by regional_baselines()."""
-    return {"_id": region, "current_events": current, "baseline_raw": baseline_raw}
+    return {
+        "_id": {"region": region, "incident_category": incident_category},
+        "current_events": current,
+        "baseline_raw": baseline_raw,
+    }
 
 
 def _service(rows: list[dict]) -> AnalyticsService:
@@ -111,7 +120,11 @@ class TestComputeBaselinesSchema:
         rows = [_row("Carpathian Forest", 10, 40)]
         entry = _compute_baselines(rows, _NOW)["regions"][0]
         assert set(entry.keys()) == {
-            "region", "baseline_events", "current_events", "deviation_percent",
+            "region",
+            "incident_category",
+            "baseline_events",
+            "current_events",
+            "deviation_percent",
             "forest_confidence",
         }
 
@@ -286,7 +299,7 @@ class TestGetRegionalBaselines:
 
     def test_response_keys(self):
         body = _run(_service([]))
-        assert set(body.keys()) == {"generated_at", "regions"}
+        assert set(body.keys()) == {"generated_at", "regions", "geographic_scope"}
 
     def test_single_region_positive_deviation(self):
         # baseline_raw=40 → baseline=10; current=20 → dev=100%

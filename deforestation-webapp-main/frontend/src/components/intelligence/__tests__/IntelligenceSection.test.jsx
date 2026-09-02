@@ -41,6 +41,30 @@ jest.mock("@/components/investigations/InvestigationsCommandCenterCard", () => (
   <div data-testid="investigations-command-center-stub" />
 ));
 
+jest.mock("@/context/OrganizationContext", () => ({
+  useOrganization: () => ({
+    selectedOrgId: "org-test-1",
+    currentOrganization: { id: "org-test-1", name: "Test Organization", role: "owner" },
+    organizations: [{ id: "org-test-1", name: "Test Organization", role: "owner" }],
+    setSelectedOrgId: jest.fn(),
+    loading: false,
+  }),
+}));
+
+jest.mock("@/context/TrialContext", () => ({
+  useTrial: () => ({
+    status: null,
+    isTrial: false,
+    isExpired: false,
+    startTrial: jest.fn(),
+    reload: jest.fn(),
+  }),
+}));
+
+jest.mock("../OperationalStatusCard", () => () => (
+  <div data-testid="operational-status-card-stub" />
+));
+
 // Mock lib/api to avoid ESM axios resolving in Jest environment
 jest.mock("@/lib/api", () => ({
   api: { get: jest.fn() },
@@ -56,6 +80,17 @@ jest.mock("@/api/analytics", () => ({
   fetchNotificationsStatus: jest.fn(),
   fetchLandCoverDistribution: jest.fn(),
   fetchRegionalRisk: jest.fn(),
+  fetchCommandCenter: jest.fn(),
+  fetchOperationalStatus: jest.fn(),
+}));
+
+jest.mock("@/api/monitoringAreas", () => ({
+  fetchMonitoringAreas: jest.fn(),
+  fetchMonitoringStatus: jest.fn(),
+}));
+
+jest.mock("@/api/customerAlerts", () => ({
+  fetchAlertOverview: jest.fn(),
 }));
 
 // Import mocks after jest.mock so we get the mocked versions
@@ -66,7 +101,16 @@ const {
   fetchNotificationsStatus,
   fetchLandCoverDistribution,
   fetchRegionalRisk,
+  fetchCommandCenter,
+  fetchOperationalStatus,
 } = require("@/api/analytics");
+
+const {
+  fetchMonitoringAreas,
+  fetchMonitoringStatus,
+} = require("@/api/monitoringAreas");
+
+const { fetchAlertOverview } = require("@/api/customerAlerts");
 
 const MOCK_SUMMARY = {
   active: 3,
@@ -140,6 +184,19 @@ const MOCK_RISK = {
   ],
 };
 
+const MOCK_COMMAND_CENTER = {
+  generated_at: "2026-06-10T12:00:00Z",
+  domains: [],
+  incident_aggregation: {},
+};
+
+const MOCK_OPERATIONAL_STATUS = {
+  geographic_scope: "europe",
+  intelligence_cycle_id: "cycle-fixture-1",
+  correlation_state: "disabled",
+  providers: [],
+};
+
 beforeEach(() => {
   jest.clearAllMocks();
   // Default status mocks so they don't interfere with other tests
@@ -147,6 +204,14 @@ beforeEach(() => {
   fetchNotificationsStatus.mockResolvedValue(MOCK_NOTIFICATIONS_STATUS);
   fetchLandCoverDistribution.mockResolvedValue(MOCK_LAND_COVER);
   fetchRegionalRisk.mockResolvedValue(MOCK_RISK);
+  fetchCommandCenter.mockResolvedValue(MOCK_COMMAND_CENTER);
+  fetchOperationalStatus.mockResolvedValue(MOCK_OPERATIONAL_STATUS);
+  fetchMonitoringAreas.mockResolvedValue({ total: 0, items: [] });
+  fetchMonitoringStatus.mockResolvedValue({
+    monitored_areas: { enabled_count: 0 },
+    disturbance_summary: { inside_monitored_area_count: 0, high_critical_investigation_count: 0 },
+  });
+  fetchAlertOverview.mockResolvedValue(null);
 });
 
 describe("IntelligenceSection", () => {
@@ -159,6 +224,8 @@ describe("IntelligenceSection", () => {
       fetchNotificationsStatus.mockReturnValue(new Promise(() => {}));
       fetchLandCoverDistribution.mockReturnValue(new Promise(() => {}));
       fetchRegionalRisk.mockReturnValue(new Promise(() => {}));
+      fetchCommandCenter.mockReturnValue(new Promise(() => {}));
+      fetchOperationalStatus.mockReturnValue(new Promise(() => {}));
 
       render(<IntelligenceSection />);
 
@@ -174,6 +241,8 @@ describe("IntelligenceSection", () => {
       fetchNotificationsStatus.mockReturnValue(new Promise(() => {}));
       fetchLandCoverDistribution.mockReturnValue(new Promise(() => {}));
       fetchRegionalRisk.mockReturnValue(new Promise(() => {}));
+      fetchCommandCenter.mockReturnValue(new Promise(() => {}));
+      fetchOperationalStatus.mockReturnValue(new Promise(() => {}));
 
       render(<IntelligenceSection />);
       expect(screen.getByTestId("intelligence-section")).toBeInTheDocument();
@@ -271,33 +340,15 @@ describe("IntelligenceSection", () => {
     });
   });
 
-  describe("priority card rendering", () => {
-    it("shows highest priority region after load", async () => {
+  describe("command center rendering", () => {
+    it("renders command center after successful fetch", async () => {
       fetchIntelligenceSummary.mockResolvedValue(MOCK_SUMMARY);
       fetchIntelligenceEvents.mockResolvedValue(MOCK_EVENTS);
 
       render(<IntelligenceSection />);
 
       await waitFor(() => {
-        expect(screen.getByTestId("top-signal-region")).toHaveTextContent(
-          "Carpathian Forest"
-        );
-      });
-    });
-
-    it("shows no-signal message when summary has no active events", async () => {
-      fetchIntelligenceSummary.mockResolvedValue({
-        ...MOCK_SUMMARY,
-        active: 0,
-        highest_priority_score: null,
-        highest_priority_region: null,
-      });
-      fetchIntelligenceEvents.mockResolvedValue({ active: [], resolved: [] });
-
-      render(<IntelligenceSection />);
-
-      await waitFor(() => {
-        expect(screen.getByTestId("top-signal-empty")).toBeInTheDocument();
+        expect(screen.getByTestId("intelligence-command-center")).toBeInTheDocument();
       });
     });
   });

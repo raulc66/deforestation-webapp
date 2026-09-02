@@ -6,10 +6,14 @@ existing anomaly events compatible (default category: wildfire).
 from __future__ import annotations
 
 from enum import StrEnum
+from typing import Any
 
 
 class IncidentCategory(StrEnum):
     WILDFIRE = "wildfire"
+    AIR_QUALITY = "air_quality"
+    ENVIRONMENTAL_HAZARD = "environmental_hazard"
+    FOREST_DISTURBANCE = "forest_disturbance"
     ILLEGAL_LOGGING = "illegal_logging"
     TREE_THEFT = "tree_theft"
     DEFORESTATION = "deforestation"
@@ -19,6 +23,19 @@ class IncidentCategory(StrEnum):
 
 
 INCIDENT_CATEGORIES: tuple[str, ...] = tuple(c.value for c in IncidentCategory)
+
+# Categories that receive zero-count slots in Phase 0 oracle artifacts.
+# New categories (e.g. air_quality) appear only once they carry events/counts.
+PHASE0_ORACLE_CATEGORY_KEYS: frozenset[str] = frozenset(
+    cat
+    for cat in INCIDENT_CATEGORIES
+    if cat
+    not in (
+        IncidentCategory.AIR_QUALITY.value,
+        IncidentCategory.ENVIRONMENTAL_HAZARD.value,
+        IncidentCategory.FOREST_DISTURBANCE.value,
+    )
+)
 
 # Maps existing ForestEvent.event_type values to ecosystem incident categories.
 _FOREST_EVENT_TYPE_MAP: dict[str, IncidentCategory] = {
@@ -58,6 +75,11 @@ def resolve_incident_category(source: dict | None = None) -> str:
     if explicit:
         return normalize_incident_category(explicit)
 
+    metadata = source.get("metadata") or {}
+    meta_category = metadata.get("incident_category")
+    if meta_category:
+        return normalize_incident_category(meta_category)
+
     forest_event_type = source.get("forest_event_type") or source.get("event_type")
     if forest_event_type and forest_event_type != "anomaly":
         return map_forest_event_type_to_incident(str(forest_event_type))
@@ -71,3 +93,11 @@ def map_forest_event_type_to_incident(event_type: str) -> str:
     if mapped is not None:
         return mapped.value
     return IncidentCategory.UNKNOWN.value
+
+
+def forest_event_type_switch_branches() -> list[dict[str, Any]]:
+    """MongoDB ``$switch`` branches derived from :data:`_FOREST_EVENT_TYPE_MAP`."""
+    return [
+        {"case": {"$eq": ["$event_type", event_type]}, "then": category.value}
+        for event_type, category in _FOREST_EVENT_TYPE_MAP.items()
+    ]

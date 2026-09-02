@@ -1,0 +1,87 @@
+ForestWatch Proprietary Source-Available License (Draft)
+
+Status: DRAFT FOR LEGAL REVIEW. This is not legal advice and is not claimed
+to be enforceable until reviewed and issued by qualified counsel.
+
+Copyright (c) 2026 ForestWatch. All rights reserved.
+
+1. Grant of license
+
+ForestWatch original source code in this distribution (the "Software") is
+licensed, not sold. Third-party libraries, fonts, datasets, trademarks, and
+external provider APIs are not licensed by this document.
+
+A separate written order, invoice, or license certificate identifies which
+tier applies: Developer, Commercial, Agency/Customization, or Exclusive
+Acquisition.
+
+Unless a written agreement says otherwise:
+
+  (a) Developer. You may install and modify the Software for evaluation,
+      development, and non-production use by the licensed seats or
+      organization. You may not use the Software in production. You may not
+      redistribute the Software.
+
+  (b) Commercial. You may install, modify, and operate the Software in
+      production for the licensed organization's internal use. You may not
+      redistribute the Software. You may not resell, sublicense, or publish
+      the Software as a competing ForestWatch source package.
+
+  (c) Agency / Customization. You may customize the Software and deploy it
+      for named clients identified in the license, including white-label
+      presentation, subject to this license and any named-client schedule.
+      Copyright in the original Software remains with the licensor unless a
+      separate written assignment says otherwise. You may not redistribute
+      the Software as an unconstrained source package.
+
+  (d) Exclusive Acquisition. Assignment of original ForestWatch intellectual
+      property, repository transfer, and escrow, if any, are governed only by
+      a negotiated purchase agreement. That agreement does not transfer
+      third-party libraries, datasets, trademarks, or external provider rights.
+
+2. What this license does not grant
+
+This license does not grant rights in:
+
+  - FastAPI, React, MongoDB, Leaflet, or other third-party software
+  - Copernicus / CORINE derived data, NASA FIRMS, Global Forest Watch, EEA,
+    Copernicus EMS / EFFIS, Open-Meteo, or other provider datasets
+  - Google Fonts or other third-party typefaces
+  - Stripe, NASA, GFW, EEA, or other operator accounts, API keys, or trademarks
+  - The right to present ForestWatch output as legal proof of illegal activity
+    or as a government-certified monitoring system
+
+See NOTICE and docs/packaging/third-party-notices.md.
+
+3. Conditions
+
+You must retain copyright notices and NOTICE in source distributions you are
+permitted to make under a written agreement. You must not remove attribution
+required by third-party terms.
+
+External API credentials and Stripe accounts belong to the licensee. Enabling
+optional integrations is the licensee's responsibility and does not expand
+this grant.
+
+4. Restrictions
+
+Except as expressly allowed by your tier or a written agreement, you may not:
+
+  - redistribute the Software
+  - offer the Software as a hosted competing product
+  - remove or obscure this license or NOTICE
+  - represent the Software as open source
+
+5. No warranty
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE, AND NON-INFRINGEMENT. THE AUTHORS AND COPYRIGHT HOLDERS
+ARE NOT LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY ARISING FROM THE
+SOFTWARE.
+
+6. Termination
+
+This license ends automatically if you breach it. On termination you must
+stop using the Software except for copies retained solely as required by law
+or a surviving acquisition agreement.

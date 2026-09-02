@@ -36,10 +36,13 @@ from app.modules.analytics.analytics_service import (
     _evaluate_anomalies,
     _compute_anomaly_score,
     _anomaly_severity,
-    _ANOMALY_MIN_EVENTS,
-    _ANOMALY_MIN_DEVIATION,
 )
+from app.modules.analytics.anomaly_thresholds import get_anomaly_thresholds
 from app.modules.analytics.intelligence_events_service import IntelligenceEventsService
+
+_WILDFIRE_THRESHOLDS = get_anomaly_thresholds("wildfire")
+_ANOMALY_MIN_EVENTS = _WILDFIRE_THRESHOLDS.min_events
+_ANOMALY_MIN_DEVIATION = _WILDFIRE_THRESHOLDS.min_deviation_percent
 
 # Fixed anchor so all window calculations are deterministic.
 _NOW = datetime(2024, 7, 15, 12, 0, 0, tzinfo=timezone.utc)

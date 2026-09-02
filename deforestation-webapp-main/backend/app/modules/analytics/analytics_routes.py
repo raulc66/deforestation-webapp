@@ -4,21 +4,34 @@ from fastapi import APIRouter, Depends, Query, Request
 
 from app.api.deps import (
     analytics_service_dep,
+    aoi_enrichment_service_dep,
     command_center_service_dep,
+    correlation_service_dep,
+    customer_monitoring_status_service_dep,
+    evidence_aware_command_center_dep,
+    forest_context_service_dep,
     get_current_user,
+    deny_demo_global_data,
+    get_organization_context,
     history_service_dep,
     ingestion_runs_repo_dep,
+    intelligence_events_repo_dep,
+    monitoring_area_service_dep,
+    source_intelligence_service_dep,
+    operational_status_service_dep,
     intelligence_events_service_dep,
     notification_history_repo_dep,
     risk_service_dep,
     threat_assessment_service_dep,
     weather_service_dep,
 )
+from app.core.organization.organization_context import OrganizationContext
 from app.models.user import UserPublic
 from app.repositories.ingestion_runs_repository import IngestionRunsRepository
 from app.repositories.notification_history_repository import NotificationHistoryRepository
 
 from app.services.weather_service import WeatherService
+from app.services.forest_context_service import ForestContextService
 from .analytics_service import AnalyticsService
 from .command_center_service import CommandCenterService
 from .history_service import HistoryService
@@ -31,7 +44,7 @@ router = APIRouter(prefix="/analytics", tags=["analytics"])
 
 @router.get("/overview")
 async def overview(
-    _: UserPublic = Depends(get_current_user),
+    _: UserPublic = Depends(deny_demo_global_data),
     svc: AnalyticsService = Depends(analytics_service_dep),
 ):
     """Headline totals: total_events, total_area_affected, open_events,
@@ -116,27 +129,133 @@ async def intelligence_events_summary(
 @router.get("/intelligence/events")
 async def intelligence_events_endpoint(
     _: UserPublic = Depends(get_current_user),
-    analytics_svc: AnalyticsService = Depends(analytics_service_dep),
     intelligence_svc: IntelligenceEventsService = Depends(intelligence_events_service_dep),
 ):
-    """Reconcile current anomaly detections against persisted IntelligenceEvents,
-    then return all active and resolved events.
+    """Return persisted IntelligenceEvents grouped by status (read-only).
 
-    Each call: detects anomalies → upserts new / updates existing events →
-    resolves stale ones → returns ``{active: [...], resolved: [...]}``.
+    Returns ``{active: [...], resolved: [...]}`` from the last reconciliation
+    cycle. This endpoint performs no detection or reconciliation writes.
     """
-    return await analytics_svc.reconcile_intelligence_events(intelligence_svc)
+    return await intelligence_svc.get_events()
 
 
 @router.get("/intelligence/anomalies")
 async def intelligence_anomalies(
-    _: UserPublic = Depends(get_current_user),
+    _: UserPublic = Depends(deny_demo_global_data),
     svc: AnalyticsService = Depends(analytics_service_dep),
 ):
     """Rule-based anomaly detection for Romanian regions: regions whose
     current 7-day event count deviates significantly from their 4-week
     baseline are surfaced with a score, severity, and status."""
     return await svc.get_anomalies()
+
+
+@router.get("/intelligence/map-overlay")
+async def intelligence_map_overlay(
+    org_ctx: OrganizationContext = Depends(get_organization_context),
+    svc: AnalyticsService = Depends(analytics_service_dep),
+    intelligence_svc: IntelligenceEventsService = Depends(intelligence_events_service_dep),
+    monitoring_area_svc=Depends(monitoring_area_service_dep),
+    aoi_svc=Depends(aoi_enrichment_service_dep),
+):
+    """Scoped intelligence map contract — authoritative for IntelligenceMap.
+
+    Applies ``GEOGRAPHIC_SCOPE`` via ``GeographicScopePolicy``, preserves
+    authoritative coordinates (event / station / activation), and exposes
+    ``allow_romania_centroid_fallback`` so clients never apply Romanian admin
+    centroids under Europe or All scope.
+
+    Generic unscoped event retrieval remains ``GET /api/events/map``.
+    """
+    from app.models.base import utcnow
+    from app.modules.analytics.map_contract import (
+        anomaly_map_marker,
+        forest_event_map_marker,
+        intelligence_event_map_marker,
+    )
+
+    now = utcnow()
+    organization_id = org_ctx.organization_id
+    areas = await monitoring_area_svc.list_enabled_public(organization_id)
+    intel_payload = await intelligence_svc.get_events()
+    allow_romania_centroid_fallback = svc.repo.scope_policy.centroids_use_romania_admin_fallback()
+
+    intelligence_markers = [
+        intelligence_event_map_marker(
+            evt,
+            centroids=None,
+        )
+        for evt in intel_payload.get("active", [])
+    ]
+    intelligence_markers = [
+        aoi_svc.enrich_map_marker(marker, organization_id=organization_id, areas=areas)
+        for marker in intelligence_markers
+    ]
+
+    if org_ctx.is_demo:
+        return {
+            "generated_at": now,
+            "geographic_scope": svc.geographic_scope,
+            "allow_romania_centroid_fallback": False,
+            "region_centroids": {},
+            "monitored_areas": [
+                {
+                    "id": area["id"],
+                    "name": area["name"],
+                    "country": area["country"],
+                    "geometry_type": area["geometry_type"],
+                    "geometry": area["geometry"],
+                }
+                for area in areas[:20]
+            ],
+            "forest_events": [],
+            "anomalies": [],
+            "intelligence_events": intelligence_markers,
+        }
+
+    centroids = await svc.repo.region_event_centroids()
+    raw_events = await svc.repo.list_scoped_events_for_map(limit=500)
+    anomalies_payload = await svc.get_anomalies()
+    intelligence_markers = [
+        intelligence_event_map_marker(
+            evt,
+            centroids=centroids if allow_romania_centroid_fallback else None,
+        )
+        for evt in intel_payload.get("active", [])
+    ]
+    intelligence_markers = [
+        aoi_svc.enrich_map_marker(marker, organization_id=organization_id, areas=areas)
+        for marker in intelligence_markers
+    ]
+
+    return {
+        "generated_at": now,
+        "geographic_scope": svc.geographic_scope,
+        "allow_romania_centroid_fallback": allow_romania_centroid_fallback,
+        "region_centroids": {
+            region: {"latitude": lat, "longitude": lng}
+            for region, (lat, lng) in centroids.items()
+        },
+        "monitored_areas": [
+            {
+                "id": area["id"],
+                "name": area["name"],
+                "country": area["country"],
+                "geometry_type": area["geometry_type"],
+                "geometry": area["geometry"],
+            }
+            for area in areas[:20]
+        ],
+        "forest_events": [forest_event_map_marker(e) for e in raw_events],
+        "anomalies": [
+            anomaly_map_marker(
+                a,
+                centroids=centroids if allow_romania_centroid_fallback else None,
+            )
+            for a in anomalies_payload.get("anomalies", [])
+        ],
+        "intelligence_events": intelligence_markers,
+    }
 
 
 @router.get("/intelligence/baselines")
@@ -168,6 +287,24 @@ async def intelligence_alerts(
     source analytics.  Returns zero or more fire_activity alerts with
     severity, confidence, reliability score, and per-source breakdowns."""
     return await svc.get_alerts()
+
+
+@router.get("/intelligence/source-status")
+async def source_status(
+    _: UserPublic = Depends(get_current_user),
+    svc=Depends(source_intelligence_service_dep),
+):
+    """Read-only generalized provider status and health (no credentials)."""
+    return await svc.get_source_status()
+
+
+@router.get("/intelligence/correlations")
+async def intelligence_correlations(
+    _: UserPublic = Depends(get_current_user),
+    svc=Depends(correlation_service_dep),
+):
+    """Read-only cross-source correlation results (no side effects)."""
+    return await svc.list_correlations()
 
 
 @router.get("/intelligence/ingestion-status")
@@ -259,6 +396,15 @@ async def land_cover_distribution(
         }
     """
     return await svc.get_land_cover_distribution()
+
+
+@router.get("/intelligence/clms/dataset")
+async def clms_dataset_metadata(
+    _: UserPublic = Depends(get_current_user),
+    context_svc: ForestContextService = Depends(forest_context_service_dep),
+):
+    """CLMS contextual dataset metadata (read-only, no download)."""
+    return context_svc.describe_dataset()
 
 
 # ---------------------------------------------------------------------------
@@ -371,7 +517,7 @@ async def history_monthly(
 
 @router.get("/intelligence/risk")
 async def regional_risk(
-    _: UserPublic = Depends(get_current_user),
+    _: UserPublic = Depends(deny_demo_global_data),
     svc: RiskService = Depends(risk_service_dep),
 ):
     """Compute deterministic fire risk scores for every Romanian region.
@@ -410,7 +556,7 @@ async def regional_risk(
 
 @router.get("/intelligence/weather")
 async def regional_weather(
-    _: UserPublic = Depends(get_current_user),
+    _: UserPublic = Depends(deny_demo_global_data),
     svc: WeatherService = Depends(weather_service_dep),
 ):
     """Return cached weather observations for all monitored Romanian regions.
@@ -461,20 +607,71 @@ async def incident_aggregation(
 
 @router.get("/intelligence/command-center")
 async def command_center_snapshot(
-    _: UserPublic = Depends(get_current_user),
+    org_ctx: OrganizationContext = Depends(get_organization_context),
     svc: CommandCenterService = Depends(command_center_service_dep),
+    source_intel=Depends(source_intelligence_service_dep),
+    evidence_svc=Depends(evidence_aware_command_center_dep),
+    intel_repo=Depends(intelligence_events_repo_dep),
+    monitoring_area_svc=Depends(monitoring_area_service_dep),
+    aoi_svc=Depends(aoi_enrichment_service_dep),
 ):
     """Command Center readiness snapshot (architecture preparation).
 
     Returns domain module status, incident aggregation, and active intelligence
     counts by category.  Domains marked ``planned`` have no live pipeline yet.
     """
-    return await svc.get_snapshot()
+    snapshot = await svc.get_snapshot()
+    snapshot["source_health_summary"] = await source_intel.get_health_summary()
+    snapshot["degraded_sources"] = await source_intel.get_degraded_sources()
+    evidence = await evidence_svc.build_intelligence_evidence()
+    organization_id = org_ctx.organization_id
+    areas = await monitoring_area_svc.list_enabled_public(organization_id)
+    active_events = await intel_repo.find_active()
+    snapshot["intelligence_evidence"] = aoi_svc.enrich_intelligence_evidence_payload(
+        evidence,
+        active_events=active_events,
+        organization_id=organization_id,
+        areas=areas,
+    )
+    return snapshot
+
+
+@router.get("/intelligence/evidence/{correlation_id}")
+async def correlation_evidence_detail(
+    correlation_id: str,
+    _: UserPublic = Depends(get_current_user),
+    evidence_svc=Depends(evidence_aware_command_center_dep),
+):
+    """Read-only bounded evidence detail for one correlation."""
+    detail = await evidence_svc.get_correlation_evidence(correlation_id)
+    if detail is None:
+        from fastapi import HTTPException
+
+        raise HTTPException(status_code=404, detail="Correlation not found")
+    return detail
+
+
+@router.get("/intelligence/operational-status")
+async def operational_status(
+    _: UserPublic = Depends(get_current_user),
+    svc=Depends(operational_status_service_dep),
+):
+    """Bounded read-only operational status for multi-region validation."""
+    return await svc.get_operational_status()
+
+
+@router.get("/intelligence/monitoring-status")
+async def customer_monitoring_status(
+    org_ctx: OrganizationContext = Depends(get_organization_context),
+    svc=Depends(customer_monitoring_status_service_dep),
+):
+    """Read-only organization monitoring summary — AOI relevance and disturbance counts."""
+    return await svc.get_monitoring_status(org_ctx)
 
 
 @router.get("/intelligence/threats")
 async def intelligence_threats(
-    _: UserPublic = Depends(get_current_user),
+    _: UserPublic = Depends(deny_demo_global_data),
     svc: ThreatAssessmentService = Depends(threat_assessment_service_dep),
 ):
     """Environmental threat assessments for all active intelligence events."""

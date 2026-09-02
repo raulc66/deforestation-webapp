@@ -30,10 +30,17 @@ next-env.d.ts
 dist/
 dist
 
-# Environment files (comprehensive coverage)
-
+# Environment files
+.env
+.env.*
+!.env.example
+*.env
+!*.env.example
 *token.json*
 *credentials.json*
+credentials.json
+*.key
+.credentials
 
 # Logs and debug files
 npm-debug.log*
@@ -76,15 +83,14 @@ agenthub/agents/youtube/db
 # Build caches
 .cache/
 
-memory/test_credentials.md
-
 # Mobile development
 android-sdk/
-.env
-.env.*
-!.env.example
-*.env
-!*.env.example
-credentials.json
-*.key
-.credentials
+
+# Packaging / local runtime (do not ship)
+.gitconfig
+test_reports/
+memory/
+reports/
+frontend/npm_ls.json
+.emergent/
+test_result.md

@@ -242,13 +242,19 @@ npx craco test --watchAll=false
 
 | File | Status |
 |------|--------|
-| `docs/ARCHITECTURE.md` | Current (this audit) |
+| `docs/architecture/` | **Canonical architecture** (frozen v1.0) |
+| `docs/architecture/adr/` | Architecture Decision Records |
+| `docs/PROJECT_STATE.md` | **Current project execution status** (living document) |
+| `docs/engineering/` | Engineering specifications and implementation backlogs |
+| `docs/CHANGELOG.md` | Project documentation and release changelog |
+| `docs/RELEASE_NOTES.md` | User-visible release history |
+| `docs/archive/` | Historical documentation snapshots |
+| `docs/ARCHITECTURE.md` | As-built implementation map |
 | `docs/DATABASE.md` | Current |
 | `docs/API_REFERENCE.md` | Current |
 | `docs/PROJECT_STRUCTURE.md` | Current |
-| `docs/INTELLIGENCE_PIPELINE.md` | Current |
-| `docs/EXTENDING_FORESTWATCH.md` | Current |
+| `docs/INTELLIGENCE_PIPELINE.md` | As-built pipeline reference |
+| `docs/EXTENDING_FORESTWATCH.md` | As-built extension recipes |
 | `docs/DEPENDENCIES.md` | Current |
-| `docs/PROJECT_STATE.md` | Pre-audit snapshot — may be stale |
-| `docs/ROADMAP.md` | Pre-audit roadmap — may be stale |
-| `backend/app/core/ecosystem/ARCHITECTURE.md` | Ecosystem module design notes |
+| `docs/ROADMAP.md` | Product delivery roadmap |
+| `backend/app/core/ecosystem/ARCHITECTURE.md` | Ecosystem module implementation notes |

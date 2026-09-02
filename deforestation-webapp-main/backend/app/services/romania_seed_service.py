@@ -52,11 +52,13 @@ SEED_FLAG: str = "romania_intelligence_seed"
 _FIRMS: str = "NASA FIRMS"
 _CSV: str = "CSV"
 
-# Approximate centre coordinates for each seeded region (Romania).
+# Approximate forest-belt coordinates for each seeded region (Romania).
+# City-centroid placement caused urban land-cover classification and red
+# markers on roads; forest coordinates keep seed events geospatially valid.
 _REGION_COORDS: dict[str, tuple[float, float]] = {
-    "Suceava":  (47.53, 25.93),
-    "Bacău":    (46.57, 26.92),
-    "Harghita": (46.35, 25.80),
+    "Suceava":  (47.68, 25.72),
+    "Bacău":    (46.62, 26.55),
+    "Harghita": (46.42, 25.65),
 }
 
 
@@ -155,9 +157,9 @@ async def seed_romania_intelligence(
 
     for idx, (region, source, confidence, severity, area_ha, days_ago) in enumerate(specs):
         lat, lng = _REGION_COORDS[region]
-        # Small coordinate jitter so no two events share identical coordinates.
-        lat_jitter = (idx % 9) * 0.008
-        lng_jitter = (idx % 7) * 0.009
+        # Small forest-biased jitter — keeps events distinct without drifting to urban cores.
+        lat_jitter = (idx % 5) * 0.002
+        lng_jitter = (idx % 4) * 0.002
 
         detected_at = now - timedelta(days=days_ago, hours=(idx % 6))
 

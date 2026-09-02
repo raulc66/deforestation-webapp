@@ -1,0 +1,43 @@
+# Paths and names excluded from commercial source zips.
+# Used by scripts/create_release.ps1
+# Do not exclude backend/tests or Phase 0 golden artifacts.
+#
+# Syntax:
+#   name            match that file/dir name at any depth (e.g. node_modules)
+#   /name           match only at the package root (e.g. /reports, not app/modules/reports)
+#   *.ext           match that file extension
+#   !name           keep even if an exclude pattern also matches (e.g. .env.example)
+
+.git
+.gitconfig
+.cursor
+.emergent
+.env
+.env.*
+!.env.example
+*.env
+!.env.example
+.venv
+venv
+node_modules
+__pycache__
+*.pyc
+.pytest_cache
+coverage
+.nyc_output
+build
+/dist
+.cache
+.idea
+.vscode
+/test_reports
+/memory
+/reports
+/tests
+test_result.md
+dump.rdb
+*.log
+*.zip
+frontend/npm_ls.json
+.DS_Store
+Thumbs.db

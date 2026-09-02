@@ -1,0 +1,235 @@
+{
+  "active_intel_by_category": {
+    "deforestation": 0,
+    "habitat_disturbance": 0,
+    "illegal_logging": 0,
+    "protected_area_violation": 0,
+    "tree_theft": 0,
+    "unknown": 0,
+    "wildfire": 2
+  },
+  "average_resolution_time_hours": null,
+  "critical_investigations": 0,
+  "domains": [
+    {
+      "capabilities": [
+        "anomaly_detection",
+        "regional_risk",
+        "land_cover"
+      ],
+      "description": "Wildfire monitoring, anomaly detection, and regional risk.",
+      "domain": "forest_health",
+      "endpoints": [
+        "/api/analytics/intelligence/anomalies",
+        "/api/analytics/intelligence/risk",
+        "/api/analytics/intelligence/land-cover"
+      ],
+      "incident_categories": [
+        "wildfire",
+        "deforestation",
+        "illegal_logging"
+      ],
+      "label": "Forest Health",
+      "status": "active"
+    },
+    {
+      "capabilities": [],
+      "description": "Wildlife and habitat disturbance monitoring (not yet implemented).",
+      "domain": "wildlife",
+      "endpoints": [],
+      "incident_categories": [
+        "habitat_disturbance"
+      ],
+      "label": "Wildlife",
+      "status": "planned"
+    },
+    {
+      "capabilities": [
+        "regional_weather"
+      ],
+      "description": "Environmental conditions via cached weather observations.",
+      "domain": "environment",
+      "endpoints": [
+        "/api/analytics/intelligence/weather"
+      ],
+      "incident_categories": [
+        "unknown"
+      ],
+      "label": "Environment",
+      "status": "partial"
+    },
+    {
+      "capabilities": [],
+      "description": "Illegal logging, tree theft, and protected-area violations (planned).",
+      "domain": "human_activity",
+      "endpoints": [],
+      "incident_categories": [
+        "illegal_logging",
+        "tree_theft",
+        "protected_area_violation"
+      ],
+      "label": "Human Activity",
+      "status": "planned"
+    }
+  ],
+  "generated_at": "2026-06-22T12:00:00Z",
+  "highest_priority_interventions": [
+    {
+      "affected_domains": [
+        "forest_health",
+        "environment"
+      ],
+      "confidence": 0.665,
+      "incident_category": "wildfire",
+      "intervention_priority": "low",
+      "long_term_impact": "high",
+      "monitoring_priority": "medium",
+      "origin": "natural",
+      "recommended_actions": [
+        "Increase satellite monitoring frequency",
+        "Alert regional fire response teams",
+        "Review weather and wind conditions"
+      ],
+      "region": "Suceava",
+      "risk_contribution": 0.6234,
+      "source_event_id": "phase0-mem-0002",
+      "threat_category": "wildfire"
+    },
+    {
+      "affected_domains": [
+        "forest_health",
+        "environment"
+      ],
+      "confidence": 0.355,
+      "incident_category": "wildfire",
+      "intervention_priority": "low",
+      "long_term_impact": "low",
+      "monitoring_priority": "medium",
+      "origin": "natural",
+      "recommended_actions": [
+        "Increase satellite monitoring frequency",
+        "Alert regional fire response teams",
+        "Review weather and wind conditions"
+      ],
+      "region": "Cluj",
+      "risk_contribution": 0.2974,
+      "source_event_id": "phase0-mem-0003",
+      "threat_category": "wildfire"
+    }
+  ],
+  "human_vs_natural_ratio": {
+    "environmental": 0.0,
+    "human": 0.0,
+    "natural": 1.0,
+    "unknown": 0.0
+  },
+  "incident_aggregation": {
+    "aggregators": {
+      "wildfire": {
+        "aggregator_id": "wildfire",
+        "anomalies": [],
+        "anomaly_count": 0,
+        "incident_categories": [
+          "wildfire"
+        ],
+        "overview": {
+          "average_confidence": 0.737,
+          "investigating_events": 0,
+          "open_events": 65,
+          "resolved_events": 0,
+          "total_area_affected": 8580.0,
+          "total_events": 65
+        },
+        "wildfire_events": {
+          "affected_area_ha": 8580.0,
+          "event_count": 65,
+          "event_type": "wildfire"
+        }
+      }
+    },
+    "by_incident_category": {
+      "deforestation": {
+        "event_count": 0
+      },
+      "habitat_disturbance": {
+        "event_count": 0
+      },
+      "illegal_logging": {
+        "event_count": 0
+      },
+      "protected_area_violation": {
+        "event_count": 0
+      },
+      "tree_theft": {
+        "event_count": 0
+      },
+      "unknown": {
+        "event_count": 0
+      },
+      "wildfire": {
+        "affected_area_ha": 8580.0,
+        "event_count": 65,
+        "source_aggregator": "wildfire"
+      }
+    }
+  },
+  "investigations_by_region": {},
+  "most_affected_domains": [
+    {
+      "domain": "forest_health",
+      "threat_count": 2
+    },
+    {
+      "domain": "environment",
+      "threat_count": 2
+    }
+  ],
+  "open_investigations": 0,
+  "threat_distribution": {
+    "wildfire": 2
+  },
+  "top_threats": [
+    {
+      "affected_domains": [
+        "forest_health",
+        "environment"
+      ],
+      "confidence": 0.665,
+      "incident_category": "wildfire",
+      "intervention_priority": "low",
+      "long_term_impact": "high",
+      "monitoring_priority": "medium",
+      "origin": "natural",
+      "recommended_actions": [
+        "Increase satellite monitoring frequency",
+        "Alert regional fire response teams",
+        "Review weather and wind conditions"
+      ],
+      "region": "Suceava",
+      "risk_contribution": 0.6234,
+      "source_event_id": "phase0-mem-0002",
+      "threat_category": "wildfire"
+    },
+    {
+      "affected_domains": [
+        "forest_health",
+        "environment"
+      ],
+      "confidence": 0.355,
+      "incident_category": "wildfire",
+      "intervention_priority": "low",
+      "long_term_impact": "low",
+      "monitoring_priority": "medium",
+      "origin": "natural",
+      "recommended_actions": [
+        "Increase satellite monitoring frequency",
+        "Alert regional fire response teams",
+        "Review weather and wind conditions"
+      ],
+      "region": "Cluj",
+      "risk_contribution": 0.2974,
+      "source_event_id": "phase0-mem-0003",
+      "threat_category": "wildfire"
+    }
+  ]
+}

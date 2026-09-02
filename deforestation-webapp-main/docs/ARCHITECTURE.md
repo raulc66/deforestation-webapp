@@ -412,6 +412,10 @@ references table at the top of this document.
 | `DATABASE.md` | Collection schemas and indexes |
 | `API_REFERENCE.md` | All HTTP endpoints |
 | `PROJECT_STRUCTURE.md` | Package layout |
+| `PROJECT_STATE.md` | Current project execution status |
 | `INTELLIGENCE_PIPELINE.md` | Pipeline step-by-step (as-built) |
 | `EXTENDING_FORESTWATCH.md` | Extension recipes (as-built) |
 | `DEPENDENCIES.md` | External libraries |
+| `CHANGELOG.md` | Project documentation changelog |
+| `RELEASE_NOTES.md` | User-visible releases |
+| `archive/` | Historical documentation snapshots |

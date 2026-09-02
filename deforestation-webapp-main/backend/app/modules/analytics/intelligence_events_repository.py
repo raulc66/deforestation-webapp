@@ -25,8 +25,13 @@ def _fmt(doc: dict) -> dict:
 class IntelligenceEventsRepository:
     collection_name = "intelligence_events"
 
-    def __init__(self, db: AsyncIOMotorDatabase) -> None:
-        self.col = db[self.collection_name]
+    def __init__(
+        self,
+        db: AsyncIOMotorDatabase,
+        *,
+        collection_name: str | None = None,
+    ) -> None:
+        self.col = db[collection_name or self.collection_name]
 
     # ------------------------------------------------------------------ #
     # Reads
@@ -47,6 +52,23 @@ class IntelligenceEventsRepository:
             _fmt(doc)
             async for doc in self.col.find({}).sort("last_detected_at", -1)
         ]
+
+    async def find_active_by_identity(
+        self,
+        incident_category: str,
+        spatial_key: str,
+    ) -> dict | None:
+        """Return the active event matching canonical identity, or None."""
+        from app.core.ecosystem.incident_categories import normalize_incident_category
+
+        doc = await self.col.find_one(
+            {
+                "status": "active",
+                "incident_category": normalize_incident_category(incident_category),
+                "spatial_key": str(spatial_key),
+            }
+        )
+        return _fmt(doc) if doc else None
 
     async def find_active_by_region(self, event_type: str, region: str) -> dict | None:
         """Return the single active event matching *event_type* + *region*, or None."""

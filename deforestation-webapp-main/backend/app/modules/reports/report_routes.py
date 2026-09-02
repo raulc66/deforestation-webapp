@@ -10,7 +10,8 @@ from pathlib import Path
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from fastapi.responses import FileResponse
 
-from app.api.deps import get_current_user, report_service_dep
+from app.api.deps import deny_demo_global_data, get_current_user, report_service_dep
+from app.core.demo.identity import is_demo_user
 from app.models.user import UserPublic
 
 from .report_models import GenerateReportRequest, ReportFormat, ReportType
@@ -28,7 +29,7 @@ router = APIRouter(tags=["reports"])
 
 @router.get("")
 async def list_reports(
-    _: UserPublic = Depends(get_current_user),
+    _: UserPublic = Depends(deny_demo_global_data),
     report_svc: ReportService = Depends(report_service_dep),
 ):
     """Return all report metadata records, newest first."""
@@ -39,7 +40,7 @@ async def list_reports(
 @router.get("/{report_id}")
 async def get_report(
     report_id: str,
-    _: UserPublic = Depends(get_current_user),
+    _: UserPublic = Depends(deny_demo_global_data),
     report_svc: ReportService = Depends(report_service_dep),
 ):
     """Return metadata for a single report."""
@@ -53,7 +54,7 @@ async def get_report(
 async def generate_report(
     request: GenerateReportRequest,
     background_tasks: BackgroundTasks,
-    _: UserPublic = Depends(get_current_user),
+    user: UserPublic = Depends(get_current_user),
     report_svc: ReportService = Depends(report_service_dep),
 ):
     """Create a new report and begin generation in the background.
@@ -61,6 +62,11 @@ async def generate_report(
     Returns the PENDING record immediately (HTTP 202 Accepted).
     Poll ``GET /api/reports/{id}`` to track progress.
     """
+    if is_demo_user(user):
+        raise HTTPException(
+            status_code=403,
+            detail="Demonstration reports are simulated. Create an organization to generate operational reports.",
+        )
     record = await report_svc.create_pending(
         report_type=request.type,
         report_format=request.format,
@@ -88,7 +94,7 @@ async def generate_report(
 @router.delete("/{report_id}", status_code=204)
 async def delete_report(
     report_id: str,
-    _: UserPublic = Depends(get_current_user),
+    _: UserPublic = Depends(deny_demo_global_data),
     report_svc: ReportService = Depends(report_service_dep),
 ):
     """Delete a report and its associated file."""
@@ -100,7 +106,7 @@ async def delete_report(
 @router.get("/{report_id}/download")
 async def download_report(
     report_id: str,
-    _: UserPublic = Depends(get_current_user),
+    _: UserPublic = Depends(deny_demo_global_data),
     report_svc: ReportService = Depends(report_service_dep),
 ):
     """Download the generated report file."""

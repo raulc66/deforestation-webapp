@@ -126,6 +126,7 @@ From `app/core/config.py`:
 | `MONGO_URL` | required | MongoDB connection |
 | `DB_NAME` | required | Database name |
 | `JWT_SECRET` | required | Token signing |
+| `FORESTWATCH_ENV` | `development` | `production` refuses known-insecure defaults |
 | `ADMIN_EMAIL` | `admin@example.com` | Admin seed |
 | `ADMIN_PASSWORD` | `admin123` | Admin seed |
 | `FRONTEND_URL` | `http://localhost:3000` | CORS reference |

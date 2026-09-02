@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Brain } from "lucide-react";
 import {
   fetchIntelligenceEvents,
   fetchIntelligenceSummary,
@@ -8,29 +7,51 @@ import {
   fetchNotificationsStatus,
   fetchLandCoverDistribution,
   fetchRegionalRisk,
+  fetchCommandCenter,
+  fetchOperationalStatus,
 } from "@/api/analytics";
+import { fetchMonitoringAreas, fetchMonitoringStatus } from "@/api/monitoringAreas";
+import { fetchAlertOverview } from "@/api/customerAlerts";
+import { fetchBillingStatus } from "@/api/billing";
+import { useOrganization } from "@/context/OrganizationContext";
+import { useDemo } from "@/context/DemoContext";
+import { useTrial } from "@/context/TrialContext";
+import { isDemoOrganization } from "@/lib/demo";
+import TrialConversionCta from "@/components/trial/TrialConversionCta";
+import MonitoredAreasCard from "./MonitoredAreasCard";
+import CustomerMonitoringStatusCard from "./CustomerMonitoringStatusCard";
+import InvestigationsCommandCenterCard from "@/components/investigations/InvestigationsCommandCenterCard";
 import { formatApiErrorDetail } from "@/lib/api";
 import IntelligenceSummaryCards from "./IntelligenceSummaryCards";
-import TopIntelligenceSignalCard from "./TopIntelligenceSignalCard";
 import ActiveIntelligenceEvents from "./ActiveIntelligenceEvents";
 import IngestionStatusCard from "./IngestionStatusCard";
 import NotificationsStatusCard from "./NotificationsStatusCard";
 import LandCoverDistributionCard from "./LandCoverDistributionCard";
-import HighestRiskRegionCard from "./HighestRiskRegionCard";
 import IntelligenceMap from "./IntelligenceMap";
 import HistoricalIntelligenceSection from "./HistoricalIntelligenceSection";
 import RegionalRiskSection from "./RegionalRiskSection";
 import RegionalWeatherSection from "./RegionalWeatherSection";
-import InvestigationsCommandCenterCard from "@/components/investigations/InvestigationsCommandCenterCard";
+import OperationalStatusCard from "./OperationalStatusCard";
+import IntelligenceCommandCenter from "./IntelligenceCommandCenter";
 
 export default function IntelligenceSection() {
   const navigate = useNavigate();
+  const { selectedOrgId, organizationVersion, currentOrganization } = useOrganization();
+  const demo = useDemo();
+  const trial = useTrial();
+  const isDemo = demo.isDemo || isDemoOrganization(currentOrganization);
   const [summary, setSummary] = useState(null);
   const [events, setEvents] = useState(null);
   const [ingestionStatus, setIngestionStatus] = useState(null);
   const [notificationsStatus, setNotificationsStatus] = useState(null);
   const [landCoverData, setLandCoverData] = useState(null);
   const [riskData, setRiskData] = useState(null);
+  const [commandCenter, setCommandCenter] = useState(null);
+  const [operationalStatus, setOperationalStatus] = useState(null);
+  const [monitoringAreas, setMonitoringAreas] = useState(null);
+  const [monitoringStatus, setMonitoringStatus] = useState(null);
+  const [alertOverview, setAlertOverview] = useState(null);
+  const [billingStatus, setBillingStatus] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -38,13 +59,32 @@ export default function IntelligenceSection() {
     setLoading(true);
     setError(null);
     try {
-      const [summaryData, eventsData, ingestionData, notifData, lcData, riskResult] = await Promise.all([
+      const [
+        summaryData,
+        eventsData,
+        ingestionData,
+        notifData,
+        lcData,
+        riskResult,
+        ccData,
+        opStatus,
+        areasData,
+        monStatus,
+        alertData,
+        billingData,
+      ] = await Promise.all([
         fetchIntelligenceSummary(),
         fetchIntelligenceEvents(),
-        fetchIngestionStatus(),
-        fetchNotificationsStatus(),
-        fetchLandCoverDistribution(),
-        fetchRegionalRisk(),
+        isDemo ? Promise.resolve(null) : fetchIngestionStatus(),
+        isDemo ? Promise.resolve(null) : fetchNotificationsStatus(),
+        isDemo ? Promise.resolve(null) : fetchLandCoverDistribution(),
+        isDemo ? Promise.resolve(null) : fetchRegionalRisk(),
+        fetchCommandCenter(),
+        fetchOperationalStatus(),
+        fetchMonitoringAreas().catch(() => ({ items: [], total: 0 })),
+        fetchMonitoringStatus().catch(() => null),
+        fetchAlertOverview().catch(() => null),
+        isDemo ? Promise.resolve(null) : fetchBillingStatus().catch(() => null),
       ]);
       setSummary(summaryData);
       setEvents(eventsData);
@@ -52,6 +92,12 @@ export default function IntelligenceSection() {
       setNotificationsStatus(notifData);
       setLandCoverData(lcData);
       setRiskData(riskResult);
+      setCommandCenter(ccData);
+      setOperationalStatus(opStatus);
+      setMonitoringAreas(areasData);
+      setMonitoringStatus(monStatus);
+      setAlertOverview(alertData);
+      setBillingStatus(billingData);
     } catch (err) {
       const detail = err?.response?.data?.detail;
       setError(
@@ -65,17 +111,28 @@ export default function IntelligenceSection() {
       setNotificationsStatus(null);
       setLandCoverData(null);
       setRiskData(null);
+      setCommandCenter(null);
+      setOperationalStatus(null);
+      setMonitoringAreas(null);
+      setMonitoringStatus(null);
+      setAlertOverview(null);
+      setBillingStatus(null);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [isDemo]);
 
   useEffect(() => {
-    load();
-  }, [load]);
+    if (selectedOrgId) load();
+  }, [load, selectedOrgId, organizationVersion]);
 
   const handleCreateInvestigation = useCallback(
-    (evt) => {
+    async (evt) => {
+      if (isDemo) {
+        await demo.investigate(evt?.id ?? evt?.event_id);
+        demo.setGuideStep("evidence");
+        return;
+      }
       const params = new URLSearchParams({
         intel_event_id: evt.id ?? "",
         region: evt.region ?? "",
@@ -85,88 +142,112 @@ export default function IntelligenceSection() {
       });
       navigate(`/investigations?${params.toString()}`);
     },
-    [navigate]
+    [navigate, isDemo, demo]
+  );
+
+  const evidenceByEventId = Object.fromEntries(
+    (commandCenter?.intelligence_evidence?.items ?? []).map((item) => [item.event_id, item])
   );
 
   return (
     <>
-    <section className="mb-12" data-testid="intelligence-section">
-      <div className="flex items-end justify-between gap-4 mb-6">
-        <div>
-          <div className="label-eyebrow flex items-center gap-1.5">
-            <Brain className="w-3 h-3" strokeWidth={2} />
-            Environmental Intelligence · Live
+      <section className="mb-12" data-testid="intelligence-section">
+        <div className="flex items-end justify-between gap-4 mb-6">
+          <div>
+            <div className="fw-kicker">Environmental intelligence</div>
+            <h2 className="text-2xl font-semibold tracking-tight mt-1 text-[var(--text-primary)]">
+              Operational command
+            </h2>
+            <p className="text-sm text-[var(--text-muted)] mt-1">
+              Monitor · detect · evaluate evidence · prioritize investigation
+            </p>
           </div>
-          <h2 className="text-2xl font-semibold tracking-tight mt-1">
-            Active anomaly intelligence
-          </h2>
-          <p className="text-sm text-[#7b827b] mt-1">
-            Ranked by operational priority · updated each visit
-          </p>
+          {error && (
+            <button
+              type="button"
+              onClick={load}
+              className="text-sm text-[var(--accent-strong)] font-semibold hover:underline shrink-0"
+              data-testid="intelligence-retry"
+            >
+              Retry
+            </button>
+          )}
         </div>
+
         {error && (
-          <button
-            type="button"
-            onClick={load}
-            className="text-sm text-[#2d5a27] font-semibold hover:underline shrink-0"
-            data-testid="intelligence-retry"
+          <div
+            className="mb-6 px-4 py-3 rounded-md border border-[var(--signal)]/30 bg-[var(--signal)]/5 text-sm text-[var(--signal-strong)]"
+            data-testid="intelligence-error"
+            role="alert"
           >
-            Retry
-          </button>
+            {error}
+          </div>
         )}
-      </div>
 
-      {error && (
-        <div
-          className="mb-6 px-4 py-3 rounded-md border border-[#e76f51]/30 bg-[#e76f51]/5 text-sm text-[#9b2226]"
-          data-testid="intelligence-error"
-          role="alert"
-        >
-          {error}
-        </div>
-      )}
-
-      {/* Summary stat cards */}
-      <IntelligenceSummaryCards summary={summary} loading={loading && !summary} />
-
-      {/* Highest-priority signal + active events table */}
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-5 mt-6">
-        <div className="lg:col-span-1 flex flex-col gap-5">
-          <TopIntelligenceSignalCard
-            summary={summary}
-            loading={loading && !summary}
-          />
-          <IngestionStatusCard
-            status={ingestionStatus}
-            loading={loading && !ingestionStatus}
-          />
-          <NotificationsStatusCard
-            status={notificationsStatus}
-            loading={loading && !notificationsStatus}
-          />
-          <LandCoverDistributionCard
-            data={landCoverData}
-            loading={loading && !landCoverData}
-          />
-          <HighestRiskRegionCard
-            region={riskData?.regions?.[0] ?? null}
-          />
-          <InvestigationsCommandCenterCard loading={loading} />
-        </div>
-        <div className="lg:col-span-3">
-          <ActiveIntelligenceEvents
-            events={events?.active}
-            loading={loading && !events}
-            onCreateInvestigation={handleCreateInvestigation}
+        <div className="mb-6">
+          <IntelligenceCommandCenter
+            monitoringStatus={monitoringStatus}
+            commandCenter={commandCenter}
+            events={events}
+            operationalStatus={operationalStatus}
+            alertOverview={alertOverview}
+            billingStatus={isDemo ? null : billingStatus}
+            loading={loading}
+            onInvestigate={handleCreateInvestigation}
+            isDemo={isDemo}
+            focusedScenario={demo.status?.focused_scenario}
+            scenarios={demo.status?.scenarios}
           />
         </div>
-      </div>
-    {/* Intelligence map */}
-      <IntelligenceMap />
-    </section>
-    <RegionalRiskSection />
-    <RegionalWeatherSection />
-    <HistoricalIntelligenceSection />
-  </>
+
+        <IntelligenceSummaryCards summary={summary} loading={loading && !summary} />
+
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-5 mt-6">
+          <div className="lg:col-span-1 flex flex-col gap-5">
+            <OperationalStatusCard status={operationalStatus} loading={loading && !operationalStatus} />
+            <CustomerMonitoringStatusCard status={monitoringStatus} loading={loading && !monitoringStatus} />
+            <MonitoredAreasCard
+              areas={monitoringAreas}
+              entitlements={monitoringStatus?.entitlements}
+              loading={loading && !monitoringAreas}
+            />
+            {trial.isTrial && trial.status?.upgrade_cta?.moment === "area_limit" && (
+              <TrialConversionCta moment="area_limit" />
+            )}
+            {trial.isExpired && <TrialConversionCta moment="expired" />}
+            {!isDemo && (
+              <IngestionStatusCard status={ingestionStatus} loading={loading && !ingestionStatus} />
+            )}
+            {!isDemo && <InvestigationsCommandCenterCard loading={loading} />}
+            {!isDemo && (
+              <details className="fw-surface p-4 text-sm">
+                <summary className="fw-kicker cursor-pointer select-none">Additional context</summary>
+                <div className="mt-4 space-y-4">
+                  <NotificationsStatusCard status={notificationsStatus} loading={loading && !notificationsStatus} />
+                  <LandCoverDistributionCard data={landCoverData} loading={loading && !landCoverData} />
+                </div>
+              </details>
+            )}
+          </div>
+          <div className="lg:col-span-3">
+            <ActiveIntelligenceEvents
+              events={events?.active}
+              loading={loading && !events}
+              onCreateInvestigation={handleCreateInvestigation}
+              evidenceByEventId={evidenceByEventId}
+            />
+          </div>
+        </div>
+
+        <IntelligenceMap
+          evidenceByEventId={evidenceByEventId}
+          organizationName={monitoringStatus?.organization?.name}
+          demoMode={isDemo}
+        />
+      </section>
+      {!isDemo && <RegionalRiskSection />}
+      {!isDemo && <RegionalWeatherSection />}
+      {!isDemo && <HistoricalIntelligenceSection />}
+    </>
   );
 }

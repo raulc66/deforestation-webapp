@@ -596,12 +596,18 @@ class TestPdfGenerator:
         assert out.exists()
 
     @skip_if_no_reportlab
-    def test_pdf_with_empty_weather(self, tmp_path):
-        out = tmp_path / "empty_weather.pdf"
+    def test_pdf_accepts_analytics_list_land_cover_distribution(self, tmp_path):
+        out = tmp_path / "list_land_cover.pdf"
         data = _make_minimal_report_data()
-        data["weather"] = {"regions": []}
+        data["land_cover"] = {
+            "distribution": [
+                {"land_cover": "forest", "events": 5},
+                {"land_cover": "urban", "events": 2},
+            ]
+        }
         generate_report_pdf(data, str(out))
         assert out.exists()
+        assert out.stat().st_size > 500
 
     def test_raises_when_reportlab_missing(self, tmp_path, monkeypatch):
         """generate_report_pdf raises RuntimeError when ReportLab is absent."""

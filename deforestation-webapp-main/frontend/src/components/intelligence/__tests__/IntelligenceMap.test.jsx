@@ -57,12 +57,16 @@ jest.mock("leaflet", () => ({
   circleMarker: jest.fn(),
   marker: jest.fn(),
   divIcon: jest.fn(),
+  geoJSON: jest.fn(() => ({
+    bindPopup: jest.fn(),
+  })),
 }));
 
 // ---------------------------------------------------------------------------
 // Mock API layer
 // ---------------------------------------------------------------------------
 jest.mock("@/api/analytics", () => ({
+  fetchMapOverlay: jest.fn(),
   fetchMapEvents: jest.fn(),
   fetchAnomalies: jest.fn(),
   fetchIntelligenceEvents: jest.fn(),
@@ -70,6 +74,17 @@ jest.mock("@/api/analytics", () => ({
   fetchRegionalRisk: jest.fn(),
   fetchWeather: jest.fn(),
   fetchThreats: jest.fn(),
+}));
+
+jest.mock("@/api/monitoringAreas", () => ({
+  fetchMonitoringAreas: jest.fn(),
+}));
+
+jest.mock("@/context/OrganizationContext", () => ({
+  useOrganization: () => ({
+    selectedOrgId: "org-test-1",
+    organizationVersion: 1,
+  }),
 }));
 
 jest.mock("@/lib/api", () => ({
@@ -81,6 +96,7 @@ jest.mock("@/lib/api", () => ({
 // ---------------------------------------------------------------------------
 import IntelligenceMap from "../IntelligenceMap";
 import {
+  fetchMapOverlay,
   fetchMapEvents,
   fetchAnomalies,
   fetchIntelligenceEvents,
@@ -89,6 +105,7 @@ import {
   fetchWeather,
   fetchThreats,
 } from "@/api/analytics";
+import { fetchMonitoringAreas } from "@/api/monitoringAreas";
 
 // Access the mocked L for call-count assertions
 const L = require("leaflet");
@@ -118,6 +135,16 @@ const MOCK_EVENTS = {
       source: "CSV",
     },
   ],
+};
+
+const MOCK_OVERLAY = {
+  generated_at: "2024-06-01T08:00:00Z",
+  geographic_scope: "romania",
+  allow_romania_centroid_fallback: true,
+  region_centroids: {},
+  forest_events: MOCK_EVENTS.events,
+  anomalies: [],
+  intelligence_events: [],
 };
 
 const MOCK_ANOMALIES = {
@@ -179,17 +206,16 @@ const MOCK_RISK = {
 };
 
 function setupMocks({
-  events = MOCK_EVENTS,
+  overlay = MOCK_OVERLAY,
   anomalies = MOCK_ANOMALIES,
   intel = MOCK_INTEL,
   summary = MOCK_SUMMARY,
 } = {}) {
-  fetchMapEvents.mockResolvedValue(events);
+  fetchMapOverlay.mockResolvedValue(overlay);
   fetchAnomalies.mockResolvedValue(anomalies);
   fetchIntelligenceEvents.mockResolvedValue(intel);
   fetchIntelligenceSummary.mockResolvedValue(summary);
   fetchThreats.mockResolvedValue({ threats: [] });
-  // fetchRegionalRisk is NOT called on mount — only when risk overlay toggled
   fetchRegionalRisk.mockResolvedValue(MOCK_RISK);
 }
 
@@ -205,6 +231,7 @@ const waitForLoad = () =>
 
 beforeEach(() => {
   // Reset API call tracking (removes mockResolvedValue etc.)
+  fetchMapOverlay.mockReset();
   fetchMapEvents.mockReset();
   fetchAnomalies.mockReset();
   fetchIntelligenceEvents.mockReset();
@@ -212,6 +239,8 @@ beforeEach(() => {
   fetchRegionalRisk.mockReset();
   fetchWeather.mockReset();
   fetchThreats.mockReset();
+  fetchMonitoringAreas.mockReset();
+  fetchMonitoringAreas.mockResolvedValue({ items: [] });
   fetchThreats.mockResolvedValue({ threats: [] });
   fetchWeather.mockResolvedValue({ provider: "Open-Meteo", cache_ttl_minutes: 30, regions: [] });
 
@@ -231,6 +260,10 @@ beforeEach(() => {
     addTo: jest.fn().mockReturnThis(),
   }));
   L.divIcon && L.divIcon.mockImplementation(() => ({}));
+  L.geoJSON.mockImplementation(() => ({
+    bindPopup: jest.fn().mockReturnThis(),
+    addTo: jest.fn().mockReturnThis(),
+  }));
 });
 
 // ===========================================================================
@@ -244,7 +277,7 @@ describe("IntelligenceMap", () => {
   describe("loading state", () => {
     it("shows loading overlay while data is fetching", async () => {
       let resolveEvents;
-      fetchMapEvents.mockReturnValue(
+      fetchMapOverlay.mockReturnValue(
         new Promise((r) => {
           resolveEvents = r;
         })
@@ -257,7 +290,7 @@ describe("IntelligenceMap", () => {
       expect(screen.getByTestId("map-loading")).toBeInTheDocument();
 
       await act(async () => {
-        resolveEvents(MOCK_EVENTS);
+        resolveEvents(MOCK_OVERLAY);
       });
     });
 
@@ -512,7 +545,7 @@ describe("IntelligenceMap", () => {
   describe("empty state", () => {
     it("renders map without errors when all arrays are empty", async () => {
       setupMocks({
-        events: { events: [] },
+        overlay: { ...MOCK_OVERLAY, forest_events: [] },
         anomalies: { anomalies: [] },
         intel: { active: [], resolved: [] },
         summary: { active: 0, critical: 0, persistent: 0 },
@@ -524,7 +557,7 @@ describe("IntelligenceMap", () => {
 
     it("renders legend with empty data", async () => {
       setupMocks({
-        events: { events: [] },
+        overlay: { ...MOCK_OVERLAY, forest_events: [] },
         anomalies: { anomalies: [] },
         intel: { active: [], resolved: [] },
       });
@@ -534,7 +567,7 @@ describe("IntelligenceMap", () => {
     });
 
     it("renders layer controls with empty data", async () => {
-      setupMocks({ events: { events: [] } });
+      setupMocks({ overlay: { ...MOCK_OVERLAY, forest_events: [] } });
       render(<IntelligenceMap />);
       await waitForLoad();
       expect(screen.getByTestId("map-layer-controls")).toBeInTheDocument();
@@ -546,7 +579,7 @@ describe("IntelligenceMap", () => {
   // -------------------------------------------------------------------------
   describe("API failure state", () => {
     it("shows error banner when one API call throws", async () => {
-      fetchMapEvents.mockRejectedValue(new Error("Network timeout"));
+      fetchMapOverlay.mockRejectedValue(new Error("Network timeout"));
       fetchAnomalies.mockResolvedValue(MOCK_ANOMALIES);
       fetchIntelligenceEvents.mockResolvedValue(MOCK_INTEL);
       fetchIntelligenceSummary.mockResolvedValue(MOCK_SUMMARY);
@@ -569,7 +602,7 @@ describe("IntelligenceMap", () => {
     });
 
     it("still renders map container after API failure", async () => {
-      fetchMapEvents.mockRejectedValue(new Error("fail"));
+      fetchMapOverlay.mockRejectedValue(new Error("fail"));
       fetchAnomalies.mockRejectedValue(new Error("fail"));
       fetchIntelligenceEvents.mockRejectedValue(new Error("fail"));
       fetchIntelligenceSummary.mockRejectedValue(new Error("fail"));
@@ -583,7 +616,7 @@ describe("IntelligenceMap", () => {
     });
 
     it("error banner has role=alert for accessibility", async () => {
-      fetchMapEvents.mockRejectedValue(new Error("fail"));
+      fetchMapOverlay.mockRejectedValue(new Error("fail"));
       fetchAnomalies.mockResolvedValue(MOCK_ANOMALIES);
       fetchIntelligenceEvents.mockResolvedValue(MOCK_INTEL);
       fetchIntelligenceSummary.mockResolvedValue(MOCK_SUMMARY);
@@ -635,7 +668,7 @@ describe("IntelligenceMap", () => {
 
     it("does not call circleMarker when all arrays are empty", async () => {
       setupMocks({
-        events: { events: [] },
+        overlay: { ...MOCK_OVERLAY, forest_events: [] },
         anomalies: { anomalies: [] },
         intel: { active: [], resolved: [] },
       });
@@ -649,7 +682,7 @@ describe("IntelligenceMap", () => {
 
     it("creates markers for anomalies using region coordinates", async () => {
       setupMocks({
-        events: { events: [] },
+        overlay: { ...MOCK_OVERLAY, forest_events: [] },
         intel: { active: [], resolved: [] },
       });
       L.circleMarker.mockClear();
@@ -663,7 +696,7 @@ describe("IntelligenceMap", () => {
 
     it("creates markers for active intelligence events", async () => {
       setupMocks({
-        events: { events: [] },
+        overlay: { ...MOCK_OVERLAY, forest_events: [] },
         anomalies: { anomalies: [] },
       });
       L.circleMarker.mockClear();
@@ -707,11 +740,22 @@ describe("IntelligenceMap", () => {
       render(<IntelligenceMap />);
       await waitForLoad();
 
-      expect(fetchMapEvents).toHaveBeenCalledTimes(1);
+      expect(fetchMapOverlay).toHaveBeenCalledTimes(1);
       expect(fetchAnomalies).toHaveBeenCalledTimes(1);
       expect(fetchIntelligenceEvents).toHaveBeenCalledTimes(1);
       expect(fetchIntelligenceSummary).toHaveBeenCalledTimes(1);
       expect(fetchThreats).toHaveBeenCalledTimes(1);
+    });
+
+    it("does not fetch unscoped anomalies or threats in demonstration mode", async () => {
+      setupMocks();
+      render(<IntelligenceMap demoMode />);
+      await waitForLoad();
+
+      expect(fetchMapOverlay).toHaveBeenCalledTimes(1);
+      expect(fetchAnomalies).not.toHaveBeenCalled();
+      expect(fetchThreats).not.toHaveBeenCalled();
+      expect(fetchIntelligenceEvents).toHaveBeenCalledTimes(1);
     });
 
     it("only fetches once at mount (effect deps are [])", async () => {
@@ -720,7 +764,7 @@ describe("IntelligenceMap", () => {
       await waitForLoad();
 
       // Each API should have been called exactly once
-      expect(fetchMapEvents).toHaveBeenCalledTimes(1);
+      expect(fetchMapOverlay).toHaveBeenCalledTimes(1);
       expect(fetchAnomalies).toHaveBeenCalledTimes(1);
     });
   });
@@ -808,7 +852,10 @@ describe("IntelligenceMap", () => {
           },
         ],
       };
-      fetchMapEvents.mockResolvedValue(eventsWithLC);
+      fetchMapOverlay.mockResolvedValue({
+        ...MOCK_OVERLAY,
+        forest_events: eventsWithLC.events,
+      });
       fetchAnomalies.mockResolvedValue({ anomalies: [] });
       fetchIntelligenceEvents.mockResolvedValue({ active: [], resolved: [] });
       fetchIntelligenceSummary.mockResolvedValue(MOCK_SUMMARY);
@@ -835,7 +882,10 @@ describe("IntelligenceMap", () => {
           },
         ],
       };
-      fetchMapEvents.mockResolvedValue(eventsNoLC);
+      fetchMapOverlay.mockResolvedValue({
+        ...MOCK_OVERLAY,
+        forest_events: eventsNoLC.events,
+      });
       fetchAnomalies.mockResolvedValue({ anomalies: [] });
       fetchIntelligenceEvents.mockResolvedValue({ active: [], resolved: [] });
       fetchIntelligenceSummary.mockResolvedValue(MOCK_SUMMARY);
@@ -860,7 +910,7 @@ describe("IntelligenceMap", () => {
           },
         ],
       };
-      fetchMapEvents.mockResolvedValue({ events: [] });
+      fetchMapOverlay.mockResolvedValue({ ...MOCK_OVERLAY, forest_events: [] });
       fetchAnomalies.mockResolvedValue(anomaliesWithFC);
       fetchIntelligenceEvents.mockResolvedValue({ active: [], resolved: [] });
       fetchIntelligenceSummary.mockResolvedValue(MOCK_SUMMARY);
@@ -1121,7 +1171,7 @@ describe("IntelligenceMap", () => {
         addTo: jest.fn(),
       }));
 
-      fetchMapEvents.mockResolvedValue({ events: [] });
+      fetchMapOverlay.mockResolvedValue({ ...MOCK_OVERLAY, forest_events: [] });
       fetchAnomalies.mockResolvedValue({ anomalies: [] });
       fetchIntelligenceEvents.mockResolvedValue(MOCK_INTEL);
       fetchIntelligenceSummary.mockResolvedValue(MOCK_SUMMARY);
@@ -1146,6 +1196,131 @@ describe("IntelligenceMap", () => {
       expect(popupHtml).toMatch(/Wildfire/i);
       expect(popupHtml).toMatch(/natural/i);
       expect(popupHtml).toMatch(/Increase satellite monitoring/i);
+    });
+  });
+
+  describe("scoped map overlay contract", () => {
+    it("calls fetchMapOverlay on mount (not fetchMapEvents)", async () => {
+      setupMocks();
+      render(<IntelligenceMap />);
+      await waitForLoad();
+      expect(fetchMapOverlay).toHaveBeenCalledTimes(1);
+      expect(fetchMapEvents).not.toHaveBeenCalled();
+    });
+
+    it("renders European coordinates from backend forest_events", async () => {
+      const europeEvent = {
+        id: "de-wf",
+        latitude: 48.1351,
+        longitude: 11.582,
+        severity: "high",
+        region: "Bavaria",
+        incident_category: "wildfire",
+        detected_at: "2024-06-01T08:00:00Z",
+        source: "NASA FIRMS",
+        land_cover_type: "forest",
+      };
+      setupMocks({
+        overlay: {
+          ...MOCK_OVERLAY,
+          geographic_scope: "europe",
+          allow_romania_centroid_fallback: false,
+          forest_events: [europeEvent],
+        },
+      });
+      render(<IntelligenceMap />);
+      await waitForLoad();
+      expect(L.circleMarker).toHaveBeenCalledWith(
+        [48.1351, 11.582],
+        expect.any(Object)
+      );
+    });
+
+    it("does not render out-of-scope events excluded by backend", async () => {
+      setupMocks({
+        overlay: {
+          ...MOCK_OVERLAY,
+          geographic_scope: "europe",
+          forest_events: [],
+        },
+      });
+      render(<IntelligenceMap />);
+      await waitForLoad();
+      expect(L.circleMarker).not.toHaveBeenCalled();
+    });
+
+    it("preserves Leaflet latitude-longitude ordering", async () => {
+      setupMocks({
+        overlay: {
+          ...MOCK_OVERLAY,
+          forest_events: [
+            {
+              id: "pl-wf",
+              latitude: 52.2297,
+              longitude: 21.0122,
+              severity: "high",
+              region: "Mazovia",
+              land_cover_type: "forest",
+              detected_at: "2024-06-01T08:00:00Z",
+              source: "NASA FIRMS",
+            },
+          ],
+        },
+      });
+      render(<IntelligenceMap />);
+      await waitForLoad();
+      expect(L.circleMarker).toHaveBeenCalledWith(
+        [52.2297, 21.0122],
+        expect.any(Object)
+      );
+    });
+  });
+
+  describe("Tenant monitoring AOI", () => {
+    it("renders monitored areas layer toggle", async () => {
+      fetchMapOverlay.mockResolvedValue({
+        ...MOCK_OVERLAY,
+        monitored_areas: [
+          {
+            id: "a1",
+            name: "Harghita Block",
+            geometry: {
+              type: "Polygon",
+              coordinates: [[[25.5, 46.8], [26.5, 46.8], [26.5, 47.5], [25.5, 47.5], [25.5, 46.8]]],
+            },
+          },
+        ],
+      });
+      render(<IntelligenceMap />);
+      await waitForLoad();
+      expect(screen.getByTestId("layer-toggle-monitored_areas")).toBeInTheDocument();
+    });
+
+    it("prefers overlay intelligence events with AOI enrichment", async () => {
+      fetchMapOverlay.mockResolvedValue({
+        ...MOCK_OVERLAY,
+        intelligence_events: [
+          {
+            id: "dist-1",
+            incident_category: "forest_disturbance",
+            latitude: 47.12,
+            longitude: 25.98,
+            region: "Harghita",
+            priority_score: 0.7,
+            inside_monitored_area: true,
+            monitored_area: {
+              relevance: "inside_monitored_area",
+              name: "Harghita Block",
+            },
+          },
+        ],
+      });
+      render(<IntelligenceMap />);
+      await waitForLoad();
+      expect(L.circleMarker).toHaveBeenCalledWith(
+        [47.12, 25.98],
+        expect.any(Object)
+      );
     });
   });
 });

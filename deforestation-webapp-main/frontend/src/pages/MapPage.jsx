@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
+import { Link, Navigate } from "react-router-dom";
 import { MapContainer, TileLayer, CircleMarker, Popup, ZoomControl } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import AppLayout from "@/components/layout/AppLayout";
 import { api } from "@/lib/api";
 import { Filter } from "lucide-react";
+import { useDemo } from "@/context/DemoContext";
 
 const severityColor = {
   low: "#e9c46a",
@@ -22,11 +24,13 @@ const severityRadius = {
 const SEVERITIES = ["low", "medium", "high", "critical"];
 
 export default function MapPage() {
+  const { isDemo } = useDemo();
   const [alerts, setAlerts] = useState([]);
   const [filters, setFilters] = useState(new Set(SEVERITIES));
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (isDemo) return;
     let alive = true;
     (async () => {
       try {
@@ -39,12 +43,16 @@ export default function MapPage() {
     return () => {
       alive = false;
     };
-  }, []);
+  }, [isDemo]);
 
   const visible = useMemo(
     () => alerts.filter((a) => filters.has(a.severity)),
     [alerts, filters]
   );
+
+  if (isDemo) {
+    return <Navigate to="/dashboard" replace />;
+  }
 
   const toggle = (sev) => {
     setFilters((prev) => {
@@ -131,23 +139,34 @@ export default function MapPage() {
 
         {/* Glass header */}
         <div
-          className="glass absolute top-4 left-4 right-4 md:left-6 md:right-auto md:max-w-md z-[400] rounded-lg px-5 py-4 shadow-sm"
+          className="absolute top-4 left-4 right-4 md:left-6 md:right-auto md:max-w-md z-[400] rounded-lg px-5 py-4 shadow-sm bg-white border border-[#eaece6]"
           data-testid="map-header"
         >
-          <div className="label-eyebrow">Live Map</div>
+          <div className="label-eyebrow">Platform detections</div>
           <h2 className="text-xl font-semibold tracking-tight mt-1">
-            Global deforestation alerts
+            Unscoped event feed
           </h2>
-          <p className="text-xs text-[#4a524a] mt-1">
+          <p className="text-xs text-[#4a524a] mt-1" data-testid="map-unscoped-notice">
+            These detections are not limited to forests your organization monitors.
+            Use Command Center for organization-priority intelligence.
+          </p>
+          <p className="text-xs text-[#7b827b] mt-2">
             {loading
               ? "Loading…"
-              : `${visible.length} of ${alerts.length} alerts visible`}
+              : `${visible.length} of ${alerts.length} events visible`}
           </p>
+          <Link
+            to="/dashboard"
+            className="inline-block mt-3 text-sm font-semibold text-[#2d5a27] hover:underline"
+            data-testid="map-to-command-center"
+          >
+            Open Command Center
+          </Link>
         </div>
 
         {/* Glass filter panel */}
         <div
-          className="glass absolute bottom-6 left-4 md:left-6 z-[400] rounded-lg px-5 py-4 shadow-sm min-w-[240px]"
+          className="absolute bottom-6 left-4 md:left-6 z-[400] rounded-lg px-5 py-4 shadow-sm min-w-[240px] bg-white border border-[#eaece6]"
           data-testid="map-filter-panel"
         >
           <div className="flex items-center gap-2 mb-3">

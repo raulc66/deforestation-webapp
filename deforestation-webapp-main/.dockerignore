@@ -1,0 +1,16 @@
+.git
+.gitconfig
+**/.env
+**/.venv
+**/__pycache__
+**/node_modules
+**/build
+**/dist
+**/coverage
+test_reports
+memory
+reports
+frontend/npm_ls.json
+**/*.pyc
+.idea
+.vscode

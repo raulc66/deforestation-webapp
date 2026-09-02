@@ -46,7 +46,7 @@ from __future__ import annotations
 import asyncio
 import pytest
 from datetime import datetime, timezone
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch, ANY
 
 from app.services.scheduler_service import SchedulerService
 
@@ -76,6 +76,16 @@ _DEFAULT_RUN_DOC = {
 
 def _make_firms(result=None, error=None) -> AsyncMock:
     firms = AsyncMock()
+    firms.source_name = "NASA FIRMS"
+    firms.provider_id = "nasa.firms"
+    firms.describe = MagicMock(
+        return_value={
+            "source": "NASA FIRMS",
+            "provider_id": "nasa.firms",
+            "dataset_id": "firms.viirs_snpp_nrt",
+            "live_access_status": "fixture",
+        }
+    )
     if error:
         firms.run = AsyncMock(side_effect=error)
     else:
@@ -97,7 +107,9 @@ def _make_runs_repo(return_doc=None, create_error=None) -> AsyncMock:
     if create_error:
         repo.create_run = AsyncMock(side_effect=create_error)
     else:
-        repo.create_run = AsyncMock(return_value=return_doc or _DEFAULT_RUN_DOC)
+        repo.create_run = AsyncMock(
+            return_value=return_doc or {**_DEFAULT_RUN_DOC, "duration_seconds": 0.5}
+        )
     return repo
 
 
@@ -266,7 +278,9 @@ class TestRunCycleSuccess:
             intelligence_service=intel_svc,
         )
         await svc._run_cycle()
-        analytics.reconcile_intelligence_events.assert_called_once_with(intel_svc)
+        analytics.reconcile_intelligence_events.assert_called_once_with(
+            intel_svc, intelligence_cycle_id=ANY
+        )
 
     @pytest.mark.anyio
     async def test_run_doc_written_with_success_status(self):
@@ -274,18 +288,21 @@ class TestRunCycleSuccess:
         svc = _make_scheduler(runs_repo=runs_repo)
         await svc._run_cycle()
 
-        runs_repo.create_run.assert_called_once()
-        kwargs = runs_repo.create_run.call_args.kwargs
-        assert kwargs["status"] == "success"
+        assert runs_repo.create_run.call_count >= 1
+        cycle_call = runs_repo.create_run.call_args_list[-1].kwargs
+        assert cycle_call["status"] == "success"
 
     @pytest.mark.anyio
-    async def test_run_doc_source_is_nasa_firms(self):
+    async def test_run_doc_source_is_scheduler_cycle_summary(self):
         runs_repo = _make_runs_repo()
         svc = _make_scheduler(runs_repo=runs_repo)
         await svc._run_cycle()
 
-        kwargs = runs_repo.create_run.call_args.kwargs
-        assert kwargs["source"] == "NASA FIRMS"
+        cycle_call = runs_repo.create_run.call_args_list[-1].kwargs
+        assert cycle_call["source"] == "scheduler.cycle"
+        provider_call = runs_repo.create_run.call_args_list[0].kwargs
+        assert provider_call["source"] == "NASA FIRMS"
+        assert provider_call["provider_id"] == "nasa.firms"
 
     @pytest.mark.anyio
     async def test_run_doc_captures_events_fetched(self):
@@ -294,7 +311,7 @@ class TestRunCycleSuccess:
         svc = _make_scheduler(firms=firms, runs_repo=runs_repo)
         await svc._run_cycle()
 
-        kwargs = runs_repo.create_run.call_args.kwargs
+        kwargs = runs_repo.create_run.call_args_list[0].kwargs
         assert kwargs["events_fetched"] == 10
 
     @pytest.mark.anyio
@@ -304,7 +321,7 @@ class TestRunCycleSuccess:
         svc = _make_scheduler(firms=firms, runs_repo=runs_repo)
         await svc._run_cycle()
 
-        kwargs = runs_repo.create_run.call_args.kwargs
+        kwargs = runs_repo.create_run.call_args_list[0].kwargs
         assert kwargs["events_inserted"] == 7
 
     @pytest.mark.anyio
@@ -314,7 +331,7 @@ class TestRunCycleSuccess:
         svc = _make_scheduler(firms=firms, runs_repo=runs_repo)
         await svc._run_cycle()
 
-        kwargs = runs_repo.create_run.call_args.kwargs
+        kwargs = runs_repo.create_run.call_args_list[0].kwargs
         assert kwargs["duplicates_skipped"] == 3
 
     @pytest.mark.anyio
@@ -323,8 +340,8 @@ class TestRunCycleSuccess:
         svc = _make_scheduler(runs_repo=runs_repo)
         await svc._run_cycle()
 
-        kwargs = runs_repo.create_run.call_args.kwargs
-        assert kwargs["error"] is None
+        cycle_call = runs_repo.create_run.call_args_list[-1].kwargs
+        assert cycle_call["error"] is None
 
     @pytest.mark.anyio
     async def test_run_doc_has_started_at_and_completed_at(self):
@@ -332,10 +349,10 @@ class TestRunCycleSuccess:
         svc = _make_scheduler(runs_repo=runs_repo)
         await svc._run_cycle()
 
-        kwargs = runs_repo.create_run.call_args.kwargs
-        assert isinstance(kwargs["started_at"], datetime)
-        assert isinstance(kwargs["completed_at"], datetime)
-        assert kwargs["completed_at"] >= kwargs["started_at"]
+        provider_call = runs_repo.create_run.call_args_list[0].kwargs
+        assert isinstance(provider_call["started_at"], datetime)
+        assert isinstance(provider_call["completed_at"], datetime)
+        assert provider_call["completed_at"] >= provider_call["started_at"]
 
     @pytest.mark.anyio
     async def test_run_cycle_returns_run_document(self):
@@ -362,66 +379,65 @@ class TestRunCycleSuccess:
 class TestRunCycleFailure:
 
     @pytest.mark.anyio
-    async def test_firms_exception_writes_failed_run(self):
+    async def test_firms_exception_writes_failed_provider_run(self):
         firms = _make_firms(error=RuntimeError("Network timeout"))
-        runs_repo = _make_runs_repo(return_doc={"status": "failed"})
+        runs_repo = _make_runs_repo(return_doc={"status": "failed", "duration_seconds": 0.1})
         svc = _make_scheduler(firms=firms, runs_repo=runs_repo)
         await svc._run_cycle()
 
-        kwargs = runs_repo.create_run.call_args.kwargs
-        assert kwargs["status"] == "failed"
+        provider_call = runs_repo.create_run.call_args_list[0].kwargs
+        assert provider_call["status"] == "failed"
 
     @pytest.mark.anyio
     async def test_firms_exception_captures_error_message(self):
         firms = _make_firms(error=RuntimeError("FIRMS API unreachable"))
-        runs_repo = _make_runs_repo(return_doc={"status": "failed"})
+        runs_repo = _make_runs_repo(return_doc={"status": "failed", "duration_seconds": 0.1})
         svc = _make_scheduler(firms=firms, runs_repo=runs_repo)
         await svc._run_cycle()
 
-        kwargs = runs_repo.create_run.call_args.kwargs
-        assert "FIRMS API unreachable" in kwargs["error"]
+        provider_call = runs_repo.create_run.call_args_list[0].kwargs
+        assert "FIRMS API unreachable" in provider_call["error"]
 
     @pytest.mark.anyio
-    async def test_intelligence_refresh_not_called_when_firms_fails(self):
+    async def test_intelligence_refresh_still_called_when_firms_fails(self):
         firms = _make_firms(error=RuntimeError("error"))
         analytics = _make_analytics()
-        runs_repo = _make_runs_repo(return_doc={"status": "failed"})
+        runs_repo = _make_runs_repo(return_doc={"status": "failed", "duration_seconds": 0.1})
         svc = _make_scheduler(firms=firms, analytics=analytics, runs_repo=runs_repo)
         await svc._run_cycle()
 
-        analytics.reconcile_intelligence_events.assert_not_called()
+        analytics.reconcile_intelligence_events.assert_called_once()
 
     @pytest.mark.anyio
-    async def test_intelligence_refresh_exception_writes_failed_run(self):
+    async def test_intelligence_refresh_exception_marks_cycle_failed(self):
         analytics = _make_analytics(reconcile_error=RuntimeError("DB error"))
-        runs_repo = _make_runs_repo(return_doc={"status": "failed"})
+        runs_repo = _make_runs_repo(return_doc={"status": "failed", "duration_seconds": 0.1})
         svc = _make_scheduler(analytics=analytics, runs_repo=runs_repo)
         await svc._run_cycle()
 
-        kwargs = runs_repo.create_run.call_args.kwargs
-        assert kwargs["status"] == "failed"
-        assert "DB error" in kwargs["error"]
+        cycle_call = runs_repo.create_run.call_args_list[-1].kwargs
+        assert cycle_call["status"] == "failed"
+        assert "DB error" in cycle_call["error"]
 
     @pytest.mark.anyio
-    async def test_failed_run_doc_has_timestamps(self):
+    async def test_failed_provider_run_has_timestamps(self):
         firms = _make_firms(error=RuntimeError("err"))
-        runs_repo = _make_runs_repo(return_doc={"status": "failed"})
+        runs_repo = _make_runs_repo(return_doc={"status": "failed", "duration_seconds": 0.1})
         svc = _make_scheduler(firms=firms, runs_repo=runs_repo)
         await svc._run_cycle()
 
-        kwargs = runs_repo.create_run.call_args.kwargs
-        assert isinstance(kwargs["started_at"], datetime)
-        assert isinstance(kwargs["completed_at"], datetime)
+        provider_call = runs_repo.create_run.call_args_list[0].kwargs
+        assert isinstance(provider_call["started_at"], datetime)
+        assert isinstance(provider_call["completed_at"], datetime)
 
     @pytest.mark.anyio
-    async def test_run_log_failure_returns_empty_dict(self):
-        """If create_run itself fails, _run_cycle must return {} and not propagate."""
+    async def test_provider_run_log_failure_propagates(self):
+        """If provider run logging fails, the cycle raises."""
         firms = _make_firms(error=RuntimeError("err"))
         runs_repo = _make_runs_repo(create_error=RuntimeError("Mongo down"))
         svc = _make_scheduler(firms=firms, runs_repo=runs_repo)
-        # Should not raise
-        result = await svc._run_cycle()
-        assert result == {}
+        with pytest.raises(RuntimeError, match="Mongo down"):
+            await svc._run_cycle()
 
 
 # ===========================================================================

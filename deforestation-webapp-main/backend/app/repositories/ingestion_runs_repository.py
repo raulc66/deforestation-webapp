@@ -57,6 +57,9 @@ class IngestionRunsRepository:
         events_inserted: int = 0,
         duplicates_skipped: int = 0,
         error: str | None = None,
+        provider_id: str | None = None,
+        observations_rejected: int = 0,
+        cycle_id: str | None = None,
     ) -> dict:
         """Insert one ingestion run record and return it with its assigned id.
 
@@ -75,6 +78,12 @@ class IngestionRunsRepository:
             "duplicates_skipped": duplicates_skipped,
             "error": error,
         }
+        if provider_id is not None:
+            doc["provider_id"] = provider_id
+        if observations_rejected:
+            doc["observations_rejected"] = observations_rejected
+        if cycle_id is not None:
+            doc["cycle_id"] = cycle_id
         result = await self.col.insert_one(doc)
         return _fmt({**doc, "_id": result.inserted_id})
 

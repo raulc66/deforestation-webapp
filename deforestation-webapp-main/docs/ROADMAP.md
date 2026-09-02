@@ -1,8 +1,8 @@
 # ForestWatch — Roadmap
 
-**Last updated:** 2026-06-10
+**Last updated:** 2026-07-17
 
-This roadmap replaces earlier checklists at the repository root. Completed work is marked ✓. Future work is grouped by **priority** (P0–P3) and **phase**.
+This roadmap replaces earlier checklists at the repository root. Completed work is marked ✓. Future work is grouped by **priority** (P0–P3) and **delivery phase**.
 
 > **Scope:** This document is the **product and feature delivery roadmap**. The
 > **architectural evolution roadmap** — architecture phases, engine generalization, and
@@ -11,9 +11,23 @@ This roadmap replaces earlier checklists at the repository root. Completed work 
 > work below touches architectural concepts (provider framework, detectors, spatial
 > datasets, multi-tenancy), the canonical architecture documents govern the design.
 
+### Terminology — do not confuse phase numbering
+
+This document and `docs/architecture/08-roadmap.md` both use the word "phase" but refer to
+**different scopes**. They **MUST NOT** be treated as the same numbering scheme.
+
+| Term | Document | Range | Meaning |
+|------|----------|-------|---------|
+| **Architecture Phase** | `docs/architecture/08-roadmap.md` | 0–3 (+ future) | Engine evolution, domain onboarding, surface layer. Governs engineering work packages. |
+| **Delivery Phase** | This document (`docs/ROADMAP.md`) | 1–9 | Product and feature delivery milestones (platform, ingestion, UI, data sources). |
+
+When implementing architectural work (e.g. Phase 0 WP2), **always** use Architecture Phase
+numbers from `docs/architecture/08-roadmap.md`. Delivery Phase numbers in this document are
+historical product milestones only.
+
 ---
 
-## Completed — Phase 1: Core Platform ✓
+## Completed — Delivery Phase 1: Core Platform ✓
 
 | Item | Status |
 |------|--------|
@@ -35,7 +49,7 @@ This roadmap replaces earlier checklists at the repository root. Completed work 
 
 ---
 
-## Completed — Phase 2: Data Model & Geospatial ✓
+## Completed — Delivery Phase 2: Data Model & Geospatial ✓
 
 | Item | Status |
 |------|--------|
@@ -50,7 +64,7 @@ This roadmap replaces earlier checklists at the repository root. Completed work 
 
 ---
 
-## Completed — Phase 3: Ingestion & Analytics ✓
+## Completed — Delivery Phase 3: Ingestion & Analytics ✓
 
 | Item | Status |
 |------|--------|
@@ -66,7 +80,7 @@ This roadmap replaces earlier checklists at the repository root. Completed work 
 
 ---
 
-## Phase 4 — Real Data Integration (P0 / next)
+## Delivery Phase 4 — Real Data Integration (P0 / next)
 
 **Goal:** First live environmental dataset without building the full provider framework.
 
@@ -86,7 +100,7 @@ This roadmap replaces earlier checklists at the repository root. Completed work 
 
 ---
 
-## Phase 5 — Ingestion Framework (P1)
+## Delivery Phase 5 — Ingestion Framework (P1)
 
 **Goal:** Generalize after second provider (FIRMS + one more) proves patterns.
 
@@ -104,7 +118,7 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for full framework design.
 
 ---
 
-## Phase 6 — Automation & Scheduling (P1)
+## Delivery Phase 6 — Automation & Scheduling (P1)
 
 | Priority | Item |
 |----------|------|
@@ -112,12 +126,12 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for full framework design.
 | **P1** | Cron binding from `DataSource.schedule_cron` |
 | **P1** | Watermark / cursor tracking on `DataSource` |
 | **P1** | Overlap guard (skip if run already `running`) |
-| **P2** | arq + Redis worker for long satellite jobs |
+| **P2** | Long-running satellite jobs via in-process background tasks or APScheduler job queue *(architecture-gated: external job queues such as arq + Redis require an ADR and architecture version bump per Architecture v1.0; not approved)* |
 | **P2** | `POST /api/ingestion/run` → `202 Accepted` for async runs |
 
 ---
 
-## Phase 7 — Additional Data Sources (P2)
+## Delivery Phase 7 — Additional Data Sources (P2)
 
 | Priority | Item |
 |----------|------|
@@ -129,7 +143,7 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for full framework design.
 
 ---
 
-## Phase 8 — Satellite & Intelligence (P2–P3)
+## Delivery Phase 8 — Satellite & Intelligence (P2–P3)
 
 | Priority | Item |
 |----------|------|
@@ -141,7 +155,7 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for full framework design.
 
 ---
 
-## Phase 9 — Platform Expansion (P3)
+## Delivery Phase 9 — Platform Expansion (P3)
 
 | Priority | Item |
 |----------|------|

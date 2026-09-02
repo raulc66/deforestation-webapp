@@ -11,8 +11,8 @@ from typing import TYPE_CHECKING
 from app.core.ecosystem.command_center import CommandCenterSnapshot, DomainModuleStatus
 from app.core.ecosystem.domains import EcosystemDomain
 from app.core.ecosystem.incident_categories import (
-    INCIDENT_CATEGORIES,
     IncidentCategory,
+    PHASE0_ORACLE_CATEGORY_KEYS,
     normalize_incident_category,
 )
 from app.models.base import utcnow
@@ -82,10 +82,12 @@ def _domain_catalog() -> list[DomainModuleStatus]:
 
 
 def _count_active_by_category(active_events: list[dict]) -> dict[str, int]:
-    counts = {cat: 0 for cat in INCIDENT_CATEGORIES}
+    counts = {cat: 0 for cat in PHASE0_ORACLE_CATEGORY_KEYS}
     for event in active_events:
         cat = normalize_incident_category(event.get("incident_category"))
-        counts[cat] = counts.get(cat, 0) + 1
+        if cat not in counts:
+            counts[cat] = 0
+        counts[cat] += 1
     return counts
 
 

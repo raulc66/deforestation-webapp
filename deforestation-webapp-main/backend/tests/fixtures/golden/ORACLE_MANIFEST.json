@@ -1,0 +1,80 @@
+{
+  "artifacts": [
+    {
+      "artifact_key": "cycle_0_regional_baselines",
+      "description": "Regional baseline intelligence after cycle 0 reconciliation anchor",
+      "filename": "cycle_0_regional_baselines.json",
+      "sha256": "ad167f2223b3e5ec8587c49730203d1c6835de72b3526383e361dd9eca000c67"
+    },
+    {
+      "artifact_key": "cycle_0_anomalies",
+      "description": "Anomaly detection output after cycle 0 reconciliation anchor",
+      "filename": "cycle_0_anomalies.json",
+      "sha256": "18503cf1b43e167cf78cc2d73868de3ea53cf8a4dd8b21ef6256ac1cd2e74486"
+    },
+    {
+      "artifact_key": "cycle_0_intelligence_events",
+      "description": "Intelligence event inventory after cycle 0 reconciliation",
+      "filename": "cycle_0_intelligence_events.json",
+      "sha256": "bcb03009a85c53e8bee182940bb2efa4fe17cb59aca2a40233005859c5ca5602"
+    },
+    {
+      "artifact_key": "cycle_1_regional_baselines",
+      "description": "Regional baseline intelligence after cycle 1 reconciliation anchor",
+      "filename": "cycle_1_regional_baselines.json",
+      "sha256": "ceb1cc054d3fab94ffd598e536606f38d02300a330d80dde1099eab7130cc118"
+    },
+    {
+      "artifact_key": "cycle_1_anomalies",
+      "description": "Anomaly detection output after cycle 1 reconciliation anchor",
+      "filename": "cycle_1_anomalies.json",
+      "sha256": "290414f1ecc46acc6e014f46f208fbc1eda141d5d9f69c18a1006a3a183c0151"
+    },
+    {
+      "artifact_key": "cycle_1_intelligence_events",
+      "description": "Final intelligence event inventory after cycle 1 reconciliation",
+      "filename": "cycle_1_intelligence_events.json",
+      "sha256": "f214d1d87f12be7ed89dde8e5896fde2cb8c7e47cf8994e75afe6e1a31fcd2ba"
+    },
+    {
+      "artifact_key": "incident_aggregation",
+      "description": "Wildfire incident aggregation rollup after full two-cycle run",
+      "filename": "incident_aggregation.json",
+      "sha256": "0ff7b3b0169382d2bda05ea3ce305723c2e0850c9e391cee45f4d2972065ab55"
+    },
+    {
+      "artifact_key": "command_center_snapshot",
+      "description": "Command Center snapshot after full two-cycle run",
+      "filename": "command_center_snapshot.json",
+      "sha256": "30dda14808fe3d8865bb4fc60723aa203c8845fa4008613cbd95ca79edafdf43"
+    }
+  ],
+  "cycle_anchors": [
+    "2026-06-15T12:00:00+00:00",
+    "2026-06-22T12:00:00+00:00"
+  ],
+  "cycle_count": 2,
+  "encoding": {
+    "charset": "utf-8",
+    "newline": "lf"
+  },
+  "frozen_at": "2026-07-22",
+  "harness_modules": {
+    "fixture": "tests/fixtures/phase0_golden_fixture.py",
+    "golden_harness": "tests/fixtures/phase0_golden_harness.py",
+    "manifest": "tests/fixtures/phase0_oracle_manifest.py",
+    "time_anchor": "tests/fixtures/phase0_time_anchor.py"
+  },
+  "input_fixture": "tests/fixtures/phase0_golden_fixture.py",
+  "manifest_version": "1.0",
+  "oracle_id": "phase0-wildfire-oracle-v1",
+  "phase_0_status": "frozen",
+  "reference_now": "2026-06-15T12:00:00+00:00",
+  "sign_off": {
+    "criteria": "Ten consecutive end-to-end pipeline runs produce byte-identical artifact sets matching manifest SHA-256 hashes",
+    "run_count": 10,
+    "verified_by": "tests/test_phase0_oracle_integrity.py",
+    "work_package": "WP0.3"
+  },
+  "work_package": "WP0"
+}

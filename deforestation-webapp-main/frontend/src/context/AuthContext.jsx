@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState, useCallback } from "react";
 import { api, formatApiErrorDetail } from "@/lib/api";
+import { startDemoSession } from "@/api/demo";
 
 const AuthContext = createContext(null);
 
@@ -42,9 +43,24 @@ export function AuthProvider({ children }) {
     }
   };
 
+  const startDemo = async () => {
+    try {
+      const data = await startDemoSession();
+      setUser(data);
+      return { ok: true, user: data };
+    } catch (e) {
+      return { ok: false, error: formatApiErrorDetail(e.response?.data?.detail) || e.message };
+    }
+  };
+
   const logout = async () => {
     try {
       await api.post("/auth/logout");
+    } catch {
+      // ignore
+    }
+    try {
+      sessionStorage.removeItem("forestwatch.selectedOrganizationId");
     } catch {
       // ignore
     }
@@ -52,7 +68,7 @@ export function AuthProvider({ children }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, register, logout, refreshUser }}>
+    <AuthContext.Provider value={{ user, login, register, logout, refreshUser, startDemo }}>
       {children}
     </AuthContext.Provider>
   );

@@ -14,6 +14,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from app.core.geography.geographic_scope import GeographicScope, GeographicScopePolicy
 from app.modules.analytics.analytics_service import (
     AnalyticsService,
     _SEVERITY_RANK,
@@ -110,6 +111,7 @@ def _high_reliability_firms(**kwargs) -> dict:
 def _service(by_source_rows: list[dict]) -> AnalyticsService:
     repo = MagicMock()
     repo.by_source = AsyncMock(return_value=by_source_rows)
+    repo.scope_policy = GeographicScopePolicy(GeographicScope.ROMANIA)
     return AnalyticsService(repo)
 
 
@@ -505,7 +507,7 @@ class TestGetAlerts:
 
     def test_response_has_alerts_and_summary_keys(self):
         body = asyncio.run(_service([]).get_alerts())
-        assert set(body.keys()) == {"alerts", "summary"}
+        assert set(body.keys()) == {"alerts", "summary", "geographic_scope"}
 
     def test_volume_only_produces_one_alert(self):
         # Low-reliability params: only volume trigger fires.

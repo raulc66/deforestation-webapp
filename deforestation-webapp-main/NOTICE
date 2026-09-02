@@ -1,0 +1,148 @@
+ForestWatch third-party notices
+================================
+
+This file identifies major third-party software and data sources used by
+ForestWatch. It is not legal advice. License metadata below is taken from
+this repository's dependency lists and in-code provenance labels.
+
+VERIFY BEFORE DISTRIBUTION: confirm SPDX identifiers against the installed
+package versions and each provider's current terms before any commercial
+release.
+
+Original ForestWatch source is licensed separately. See LICENSE.
+
+
+Software (Python — backend/requirements.txt)
+--------------------------------------------
+
+The following packages are declared. Common published licenses are noted
+where generally known; VERIFY BEFORE DISTRIBUTION.
+
+  fastapi==0.110.1              MIT (commonly)
+  uvicorn==0.25.0               BSD-3-Clause (commonly)
+  httpx>=0.27.0                 BSD-3-Clause (commonly)
+  motor==3.3.1                  Apache-2.0 (commonly)
+  pymongo==4.5.0                Apache-2.0 (commonly)
+  pydantic>=2.6.4               MIT (commonly)
+  pyjwt>=2.10.1                 MIT (commonly)
+  bcrypt==4.1.3                 Apache-2.0 (commonly)
+  passlib>=1.7.4                BSD (commonly)
+  python-dotenv>=1.0.1          BSD-3-Clause (commonly)
+  cryptography>=42.0.8          Apache-2.0 / BSD (commonly)
+  reportlab>=4.2.0              BSD (commonly)
+  stripe>=9.0.0                 MIT (commonly)
+  requests>=2.31.0              Apache-2.0 (commonly)
+  email-validator>=2.2.0        MIT (commonly)
+  python-multipart>=0.0.9       Apache-2.0 (commonly)
+  tzdata>=2024.2                Apache-2.0 (commonly)
+
+Listed in requirements.txt; docs/DEPENDENCIES.md reports no first-party
+imports in backend application code (VERIFY BEFORE DISTRIBUTION):
+
+  boto3, requests-oauthlib, python-jose, pandas, pyarrow, numpy, jq, typer
+
+Development/test tooling listed in the same file:
+
+  pytest, black, isort, flake8, mypy
+
+
+Software (npm — frontend/package.json)
+--------------------------------------
+
+VERIFY BEFORE DISTRIBUTION: generate a full license inventory from
+package-lock.json (Create React App has a large transitive tree).
+
+Direct runtime packages include:
+
+  react, react-dom              MIT (commonly)
+  react-router-dom              MIT (commonly)
+  axios                         MIT (commonly)
+  leaflet, react-leaflet        BSD-2-Clause (commonly)
+  leaflet.markercluster         MIT (commonly)
+  lucide-react                  ISC (commonly)
+  recharts                      MIT (commonly)
+  @radix-ui/*                   MIT (commonly)
+  tailwindcss and related       MIT (commonly)
+  react-scripts / CRA           MIT (commonly) plus transitive licenses
+  zod, react-hook-form          MIT (commonly)
+
+MongoDB
+-------
+
+ForestWatch uses the Motor/PyMongo drivers to talk to a MongoDB server that
+the licensee operates. MongoDB Server is a separate product with its own
+license (SSPL for current MongoDB Inc. builds, or another distribution the
+licensee chooses). This package does not grant a MongoDB Server license.
+
+
+Fonts
+-----
+
+frontend/src/index.css loads Manrope, IBM Plex Sans, and IBM Plex Mono from
+the Google Fonts CDN at runtime. Files are not vendored in this repository.
+
+  Manrope                       SIL Open Font License (commonly)
+  IBM Plex Sans / Mono          SIL Open Font License (commonly)
+
+VERIFY BEFORE DISTRIBUTION. Offline or air-gapped deployments should vendor
+the fonts and retain their OFL notices.
+
+
+Data sources and provider terms
+-------------------------------
+
+In-code labels (not a substitute for the provider's current legal text):
+
+  Copernicus Land Monitoring Service / CORINE
+    backend/app/data/gis/romania_corine_simplified.geojson
+    backend/app/services/clms_context_provider.py
+    Label: "Copernicus Land Monitoring Service Terms"
+    The bundled GeoJSON is a simplified Romania reference derived from CLC
+    2018-class metadata. It is not an official full-resolution CLC export.
+    VERIFY BEFORE DISTRIBUTION: Copernicus licence typically requires
+    attribution for commercial use of Copernicus products and derivatives.
+
+  NASA FIRMS
+    backend/app/modules/ingestion/providers/firms.py
+    Label: "NASA FIRMS open data policy"
+    Live use requires the licensee's FIRMS_API_KEY. Empty key uses a bundled
+    mock dataset for development.
+
+  Global Forest Watch
+    backend/app/modules/ingestion/providers/gfw_integrated_alerts_constants.py
+    Label: "Global Forest Watch data policy — attribution required"
+    Live use is opt-in (ENABLE_FOREST_DISTURBANCE) and requires GFW_API_KEY.
+
+  EEA Air Quality
+    backend/app/modules/ingestion/providers/eea_air_quality.py
+    Label: "EEA standard data policy — free and open for public use"
+    Opt-in (ENABLE_EEA_AIR_QUALITY). Token optional depending on EEA access.
+
+  Copernicus EMS Rapid Mapping
+    backend/app/modules/ingestion/providers/cems_rapid_mapping.py
+    Label: "Copernicus data policy — free and open; attribution EMS/EU"
+    Opt-in (ENABLE_CEMS_RAPID_MAPPING).
+
+  EFFIS
+    backend/app/modules/ingestion/providers/effis_constants.py
+    Label: "Copernicus/EFFIS EU data policy — free and open; attribution required"
+    Opt-in (ENABLE_EFFIS_WILDFIRE_CONTEXT / ENABLE_EFFIS_LIVE).
+
+  Open-Meteo
+    backend/app/services/source_intelligence_service.py
+    Label: "Open-Meteo free API — https://open-meteo.com"
+    No API key in this package. Attribution still required by provider terms.
+
+  Stripe
+    The stripe Python SDK is a dependency. Stripe accounts, API keys, and
+    Customer data belong to the licensee. Billing is disabled by default
+    (ENABLE_BILLING=false) and has not been validated against a live Stripe
+    account as part of this package.
+
+
+Suggested attribution (operators)
+---------------------------------
+
+When redistributing or publicly deploying, retain this NOTICE and attribute
+Copernicus, NASA FIRMS, Global Forest Watch, EEA, EFFIS/CEMS, and Open-Meteo
+as applicable to the integrations you enable.

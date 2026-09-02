@@ -119,6 +119,10 @@ class TestIngestionMetadataModel:
         dumped = meta.model_dump()
         assert set(dumped.keys()) == {
             "source",
+            "provider_id",
+            "dataset_id",
+            "dataset_version",
+            "provenance_label",
             "source_event_id",
             "ingestion_timestamp",
             "is_romania",
@@ -253,6 +257,10 @@ class TestCSVIngestionMetadata:
 class TestCrossSourceConsistency:
     REQUIRED_KEYS = {
         "source",
+        "provider_id",
+        "dataset_id",
+        "dataset_version",
+        "provenance_label",
         "source_event_id",
         "ingestion_timestamp",
         "is_romania",

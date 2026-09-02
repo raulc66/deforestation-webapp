@@ -2,7 +2,7 @@
  * IntelligenceMap — Romania-focused geospatial intelligence layer.
  *
  * Three independently-toggleable marker layers:
- *   1. Forest Events    — CircleMarkers colored by severity (from /api/events/map)
+ *   1. Forest Events    — CircleMarkers colored by severity (from /api/analytics/intelligence/map-overlay)
  *   2. Anomalies        — CircleMarkers sized by anomaly_score (from /api/analytics/intelligence/anomalies)
  *   3. Intelligence     — CircleMarkers colored by priority_score (from /api/analytics/intelligence/events)
  *
@@ -23,7 +23,7 @@ import "leaflet.markercluster/dist/MarkerCluster.css";
 import "leaflet.markercluster/dist/MarkerCluster.Default.css";
 import { Map as MapIcon } from "lucide-react";
 import {
-  fetchMapEvents,
+  fetchMapOverlay,
   fetchAnomalies,
   fetchIntelligenceEvents,
   fetchIntelligenceSummary,
@@ -31,6 +31,8 @@ import {
   fetchWeather,
   fetchThreats,
 } from "@/api/analytics";
+import { fetchMonitoringAreas } from "@/api/monitoringAreas";
+import { useOrganization } from "@/context/OrganizationContext";
 import { formatApiErrorDetail } from "@/lib/api";
 
 // ---------------------------------------------------------------------------
@@ -163,6 +165,20 @@ function regionCoords(region) {
   return ROMANIA_REGION_COORDS[region] ?? ROMANIA_CENTER;
 }
 
+/** Prefer canonical event coordinates; fall back to region centroid only when absent. */
+function resolveMarkerCoords(item, geographicScope) {
+  if (
+    typeof item?.latitude === "number" &&
+    typeof item?.longitude === "number"
+  ) {
+    return [item.latitude, item.longitude];
+  }
+  if (geographicScope === "romania" || !geographicScope) {
+    return regionCoords(item?.region);
+  }
+  return null;
+}
+
 // ---------------------------------------------------------------------------
 // Popup HTML builders (inline style only — Tailwind not available in Leaflet DOM)
 // ---------------------------------------------------------------------------
@@ -178,14 +194,32 @@ const _popupWrap = (accentColor, badge, regionName, rows) => `
 
 function forestEventPopup(evt) {
   const color = SEVERITY_COLORS[evt.severity] ?? "#7b827b";
-  const lcType = evt.land_cover_type ?? "unknown";
+  const lcType = evt.land_cover_type ?? evt.forest_context?.land_cover_type ?? "unknown";
+  const isForest = evt.forest_context?.is_forest ?? ["forest", "near_forest"].includes(lcType);
   const lcConf = LAND_COVER_CONFIDENCE[lcType] ?? 0.50;
   const lcLabel = lcType.replace(/_/g, " ");
   const date = evt.detected_at
     ? new Date(evt.detected_at).toLocaleDateString()
     : "—";
   return _popupWrap(color, evt.severity ?? "—", evt.region ?? "Unknown", [
+    ["Category", _formatThreatLabel(evt.incident_category ?? "wildfire")],
+    ...(evt.incident_category === "air_quality" && evt.pollutant
+      ? [
+          ["Pollutant", evt.pollutant],
+          ["Measurement", evt.measurement_value != null ? `${evt.measurement_value} ${evt.measurement_unit ?? ""}`.trim() : "—"],
+          ["Station", evt.station_id ?? evt.region ?? "—"],
+        ]
+      : []),
+    ...(evt.incident_category === "environmental_hazard" && evt.hazard_type
+      ? [
+          ["Hazard", _formatThreatLabel(evt.hazard_type)],
+          ["Activation", evt.activation_code ?? "—"],
+          ["Source", evt.source ?? "Copernicus EMS"],
+        ]
+      : []),
+    ["Forest context", isForest ? "Forest" : "Non-forest"],
     ["Source", evt.source ?? "—"],
+    ["Confidence", typeof evt.confidence === "number" ? evt.confidence.toFixed(2) : "—"],
     ["Land Cover", lcLabel],
     ["Land Cover Source", LAND_COVER_SOURCE_LABEL],
     ["Forest Conf.", lcConf.toFixed(2)],
@@ -207,7 +241,8 @@ function anomalyPopup(a) {
       ? a.forest_confidence.toFixed(2)
       : "—";
   return _popupWrap("#e76f51", "Anomaly", a.region ?? "Unknown", [
-    ["Current events", a.current_count ?? "—"],
+    ["Category", _formatThreatLabel(a.incident_category ?? "wildfire")],
+    ["Current events", a.current_count ?? a.current_events ?? "—"],
     ["Baseline avg", typeof a.baseline_avg === "number" ? a.baseline_avg.toFixed(1) : "—"],
     ["Deviation", dev],
     ["Severity", a.severity ?? "—"],
@@ -221,13 +256,44 @@ function _formatThreatLabel(category) {
   return String(category).replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-function intelligencePopup(evt, threat) {
+function intelligencePopup(evt, threat, evidenceItem) {
   const score =
     typeof evt.priority_score === "number"
       ? evt.priority_score.toFixed(4)
       : "—";
   const color = priorityColor(evt.priority_score ?? 0);
   const rows = [
+    ["Category", _formatThreatLabel(evt.incident_category ?? "wildfire")],
+    ...(evt.incident_category === "air_quality" && evt.pollutant
+      ? [
+          ["Pollutant", evt.pollutant],
+          ["Deviation", typeof evt.deviation_percent === "number" ? `${evt.deviation_percent.toFixed(0)} %` : "—"],
+          ["Station", evt.station_id ?? evt.region ?? "—"],
+        ]
+      : []),
+    ...(evt.incident_category === "environmental_hazard" && evt.hazard_type
+      ? [
+          ["Hazard", _formatThreatLabel(evt.hazard_type)],
+          ["Deviation", typeof evt.deviation_percent === "number" ? `${evt.deviation_percent.toFixed(0)} %` : "—"],
+          ["Country", evt.country ?? evt.region ?? "—"],
+        ]
+      : []),
+    ...(evt.incident_category === "forest_disturbance"
+      ? [
+          ["Assessment", evt.assessment_label ?? evt.disturbance_assessment?.assessment_label ?? "Potential Unauthorized Forest Activity"],
+          ["Probable driver", _formatThreatLabel(evt.probable_driver ?? evt.disturbance_assessment?.probable_driver ?? evt.probable_driver_label ?? "unknown")],
+          ["Driver confidence", typeof (evt.driver_confidence ?? evt.disturbance_assessment?.driver_confidence) === "number" ? `${Math.round((evt.driver_confidence ?? evt.disturbance_assessment?.driver_confidence) * 100)}%` : "—"],
+          ["Affected area", typeof (evt.affected_area_ha ?? evt.disturbance_assessment?.affected_area_ha) === "number" ? `${(evt.affected_area_ha ?? evt.disturbance_assessment?.affected_area_ha).toFixed(1)} ha` : "—"],
+          ["Investigation", (evt.investigation_priority ?? evt.disturbance_assessment?.investigation_priority ?? "—").toString().toUpperCase()],
+          ["Authorization", _formatThreatLabel(evt.authorization_status ?? evt.disturbance_assessment?.authorization_status ?? "unknown")],
+          ...(evt.monitored_area?.relevance === "inside_monitored_area" || evt.inside_monitored_area
+            ? [
+                ["Monitored area", evt.monitored_area?.name ?? evt.monitored_area_name ?? "—"],
+                ["AOI relevance", "Inside monitored forest"],
+              ]
+            : [["AOI relevance", "Outside monitored area"]]),
+        ]
+      : []),
     ["Severity", evt.severity ?? "—"],
     ["Escalation", evt.escalation_level ?? "—"],
     ["Trend", evt.trend ?? "—"],
@@ -244,6 +310,16 @@ function intelligencePopup(evt, threat) {
         threat.recommended_actions?.[0] ?? threat.intervention_priority ?? "—",
       ]
     );
+  }
+  const evidence = evidenceItem?.evidence_summary;
+  if (evidence) {
+    rows.push(
+      ["Sources", (evidence.providers ?? []).join(" + ") || "—"],
+      ["Evidence", evidence.evidence_state?.replace(/_/g, " ") ?? "—"]
+    );
+    if (typeof evidence.strongest_correlation_strength === "number") {
+      rows.push(["Strength", evidence.strongest_correlation_strength.toFixed(2)]);
+    }
   }
   return _popupWrap(color, "Intelligence", evt.region ?? "Unknown", rows);
 }
@@ -309,7 +385,7 @@ function ForestEventsLayer({ events, visible, landCoverFilter }) {
  * Renders anomaly CircleMarkers whose radius scales with anomaly_score.
  * Coordinates are resolved from the ROMANIA_REGION_COORDS lookup.
  */
-function AnomaliesLayer({ anomalies, visible }) {
+function AnomaliesLayer({ anomalies, visible, geographicScope }) {
   const map = useMap();
 
   useEffect(() => {
@@ -317,7 +393,8 @@ function AnomaliesLayer({ anomalies, visible }) {
 
     const cluster = L.markerClusterGroup({ chunkedLoading: true });
     anomalies.forEach((a) => {
-      const coords = regionCoords(a.region);
+      const coords = resolveMarkerCoords(a, geographicScope);
+      if (!coords) return;
       const score = a.anomaly_score ?? 0;
       const radius = 8 + score * 14;
       const color = SEVERITY_COLORS[a.severity] ?? "#f4a261";
@@ -337,7 +414,7 @@ function AnomaliesLayer({ anomalies, visible }) {
     return () => {
       map.removeLayer(cluster);
     };
-  }, [map, anomalies, visible]);
+  }, [map, anomalies, visible, geographicScope]);
 
   return null;
 }
@@ -347,7 +424,7 @@ function AnomaliesLayer({ anomalies, visible }) {
  * Renders active intelligence event CircleMarkers colored by priority_score.
  * Coordinates are resolved from the ROMANIA_REGION_COORDS lookup.
  */
-function IntelligenceEventsLayer({ events, visible, threatByEventId }) {
+function IntelligenceEventsLayer({ events, visible, threatByEventId, geographicScope, evidenceByEventId }) {
   const map = useMap();
 
   useEffect(() => {
@@ -355,7 +432,8 @@ function IntelligenceEventsLayer({ events, visible, threatByEventId }) {
 
     const cluster = L.markerClusterGroup({ chunkedLoading: true });
     events.forEach((evt) => {
-      const coords = regionCoords(evt.region);
+      const coords = resolveMarkerCoords(evt, geographicScope);
+      if (!coords) return;
       const color = priorityColor(evt.priority_score ?? 0);
       const threat = threatByEventId?.[evt.id] ?? threatByEventId?.[evt.region];
       const m = L.circleMarker(coords, {
@@ -365,7 +443,7 @@ function IntelligenceEventsLayer({ events, visible, threatByEventId }) {
         radius: 10,
         weight: 2,
       });
-      m.bindPopup(intelligencePopup(evt, threat));
+      m.bindPopup(intelligencePopup(evt, threat, evidenceByEventId?.[evt.id]));
       cluster.addLayer(m);
     });
     map.addLayer(cluster);
@@ -373,7 +451,40 @@ function IntelligenceEventsLayer({ events, visible, threatByEventId }) {
     return () => {
       map.removeLayer(cluster);
     };
-  }, [map, events, visible, threatByEventId]);
+  }, [map, events, visible, threatByEventId, geographicScope, evidenceByEventId]);
+
+  return null;
+}
+
+function MonitoredAreasLayer({ areas, visible }) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (!visible || !areas?.length) return;
+
+    const layers = areas.map((area) => {
+      const layer = L.geoJSON(
+        { type: "Feature", geometry: area.geometry, properties: { name: area.name } },
+        {
+          style: {
+            color: "#2a3d35",
+            weight: 2.5,
+            dashArray: "6 4",
+            fillColor: "#3d4f46",
+            fillOpacity: 0.14,
+          },
+        }
+      );
+      layer.bindPopup(`<strong>${area.name ?? "Monitored Area"}</strong>`);
+      return layer;
+    });
+
+    layers.forEach((layer) => map.addLayer(layer));
+
+    return () => {
+      layers.forEach((layer) => map.removeLayer(layer));
+    };
+  }, [map, areas, visible]);
 
   return null;
 }
@@ -602,17 +713,21 @@ function WeatherOverlayLayer({ weatherRegions, visible }) {
 // ---------------------------------------------------------------------------
 
 const LAYER_DEFS = [
-  { key: "events",          label: "Forest Events",       color: "#e76f51" },
-  { key: "anomalies",       label: "Anomalies",            color: "#f4a261" },
-  { key: "intelligence",    label: "Intelligence Events",  color: "#9b2226" },
-  { key: "risk_overlay",    label: "Risk Overlay",         color: "#ef4444" },
-  { key: "weather_overlay", label: "Weather Overlay",      color: "#3b82f6" },
+  { key: "monitored_areas", label: "Organization AOIs", color: "#2a3d35" },
+  { key: "intelligence", label: "Intelligence signals", color: "#9b2226" },
+  { key: "events", label: "Forest events", color: "#e76f51" },
+  { key: "anomalies", label: "Anomalies", color: "#f4a261" },
+  { key: "risk_overlay", label: "Risk overlay", color: "#ef4444" },
+  { key: "weather_overlay", label: "Weather overlay", color: "#3b82f6" },
 ];
 
-function LayerControls({ layers, onToggle }) {
+function LayerControls({ layers, onToggle, demoMode = false }) {
+  const defs = demoMode
+    ? LAYER_DEFS.filter((item) => item.key === "monitored_areas" || item.key === "intelligence")
+    : LAYER_DEFS;
   return (
     <div className="flex flex-wrap gap-4 mb-2" data-testid="map-layer-controls">
-      {LAYER_DEFS.map(({ key, label, color }) => (
+      {defs.map(({ key, label, color }) => (
         <label
           key={key}
           className="inline-flex items-center gap-2 text-sm cursor-pointer select-none"
@@ -723,17 +838,22 @@ function TimeRangeFilter({ value, onChange }) {
   );
 }
 
-export default function IntelligenceMap() {
+export default function IntelligenceMap({ evidenceByEventId = {}, organizationName, demoMode = false }) {
+  const { selectedOrgId, organizationVersion } = useOrganization();
   const [mapEvents, setMapEvents] = useState([]);
   const [anomalies, setAnomalies] = useState([]);
+  const [geographicScope, setGeographicScope] = useState("romania");
   const [intelEvents, setIntelEvents] = useState(null);
+  const [overlayIntelEvents, setOverlayIntelEvents] = useState([]);
+  const [monitoredAreas, setMonitoredAreas] = useState([]);
   const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [layers, setLayers] = useState({
-    events: true,
-    anomalies: true,
+    events: !demoMode,
+    anomalies: !demoMode,
     intelligence: true,
+    monitored_areas: true,
     risk_overlay: false,
     weather_overlay: false,
   });
@@ -751,21 +871,36 @@ export default function IntelligenceMap() {
   const [timeRangeDays, setTimeRangeDays] = useState(null);
 
   useEffect(() => {
+    if (!selectedOrgId) return;
     let alive = true;
+    setMapEvents([]);
+    setAnomalies([]);
+    setIntelEvents(null);
+    setOverlayIntelEvents([]);
+    setMonitoredAreas([]);
+    setSummary(null);
+    setThreatByEventId({});
     (async () => {
       setLoading(true);
       setError(null);
       try {
-        const [eventsData, anomaliesData, intelData, summaryData, threatsData] =
+        const [overlayData, anomaliesData, intelData, summaryData, threatsData, areasData] =
           await Promise.all([
-            fetchMapEvents(),
-            fetchAnomalies(),
+            fetchMapOverlay(),
+            demoMode ? Promise.resolve({ anomalies: [] }) : fetchAnomalies(),
             fetchIntelligenceEvents(),
             fetchIntelligenceSummary(),
-            fetchThreats(),
+            demoMode ? Promise.resolve({ threats: [] }) : fetchThreats(),
+            fetchMonitoringAreas().catch(() => ({ items: [] })),
           ]);
         if (!alive) return;
-        setMapEvents(eventsData?.events ?? []);
+        setMapEvents(overlayData?.forest_events ?? []);
+        setGeographicScope(overlayData?.geographic_scope ?? "romania");
+        const overlayAreas = overlayData?.monitored_areas ?? [];
+        setMonitoredAreas(
+          overlayAreas.length > 0 ? overlayAreas : (areasData?.items ?? [])
+        );
+        setOverlayIntelEvents(overlayData?.intelligence_events ?? []);
         setAnomalies(anomaliesData?.anomalies ?? []);
         setIntelEvents(intelData);
         setSummary(summaryData);
@@ -790,7 +925,7 @@ export default function IntelligenceMap() {
     return () => {
       alive = false;
     };
-  }, []);
+  }, [selectedOrgId, organizationVersion, demoMode]);
 
   const toggleLayer = useCallback(
     (key) => {
@@ -830,25 +965,27 @@ export default function IntelligenceMap() {
     });
   }, [mapEvents, timeRangeDays]);
 
-  const activeIntelEvents = useMemo(
-    () => intelEvents?.active ?? [],
-    [intelEvents]
-  );
+  const activeIntelEvents = useMemo(() => {
+    if (overlayIntelEvents.length) return overlayIntelEvents;
+    return intelEvents?.active ?? [];
+  }, [overlayIntelEvents, intelEvents]);
 
   return (
     <section className="mb-12" data-testid="intelligence-map-section">
       {/* Section header */}
       <div className="flex items-end justify-between gap-4 mb-6">
         <div>
-          <div className="label-eyebrow flex items-center gap-1.5">
+          <div className="fw-kicker flex items-center gap-1.5">
             <MapIcon className="w-3 h-3" strokeWidth={2} />
-            Intelligence Map · Romania
+            Intelligence map
           </div>
-          <h2 className="text-2xl font-semibold tracking-tight mt-1">
+          <h2 className="text-2xl font-semibold tracking-tight mt-1 text-[var(--text-primary)]">
             Geospatial intelligence
           </h2>
-          <p className="text-sm text-[#7b827b] mt-1">
-            Forest events, anomalies, and intelligence signals · clustered view
+          <p className="text-sm text-[var(--text-muted)] mt-1">
+            {organizationName
+              ? `${organizationName} monitored areas · regional intelligence context`
+              : "Organization monitored areas · regional intelligence context"}
           </p>
         </div>
       </div>
@@ -865,11 +1002,13 @@ export default function IntelligenceMap() {
       )}
 
       {/* Layer toggle controls */}
-      <LayerControls layers={layers} onToggle={toggleLayer} />
-      {/* Time range filter — applied client-side to the Forest Events layer */}
-      <TimeRangeFilter value={timeRangeDays} onChange={setTimeRangeDays} />
-      {/* Land cover filter — applies to the Forest Events layer only */}
-      <LandCoverFilter filter={landCoverFilter} onToggle={toggleLandCover} />
+      <LayerControls layers={layers} onToggle={toggleLayer} demoMode={demoMode} />
+      {!demoMode && (
+        <TimeRangeFilter value={timeRangeDays} onChange={setTimeRangeDays} />
+      )}
+      {!demoMode && (
+        <LandCoverFilter filter={landCoverFilter} onToggle={toggleLandCover} />
+      )}
 
       {/* Map + overlays wrapper */}
       <div className="relative rounded-lg overflow-hidden border border-[#eaece6]">
@@ -901,11 +1040,21 @@ export default function IntelligenceMap() {
             visible={layers.events}
             landCoverFilter={landCoverFilter}
           />
-          <AnomaliesLayer anomalies={anomalies} visible={layers.anomalies} />
+          <AnomaliesLayer
+            anomalies={anomalies}
+            visible={layers.anomalies}
+            geographicScope={geographicScope}
+          />
           <IntelligenceEventsLayer
             events={activeIntelEvents}
             visible={layers.intelligence}
             threatByEventId={threatByEventId}
+            geographicScope={geographicScope}
+            evidenceByEventId={evidenceByEventId}
+          />
+          <MonitoredAreasLayer
+            areas={monitoredAreas}
+            visible={layers.monitored_areas}
           />
           <RiskOverlayLayer
             riskRegions={riskData?.regions ?? []}
@@ -926,7 +1075,12 @@ export default function IntelligenceMap() {
         className="flex flex-wrap gap-4 mt-3 text-xs text-[#7b827b]"
         data-testid="map-legend"
       >
-        <span className="font-semibold text-[#1a1e1a]">Fill (severity):</span>
+        <span className="font-semibold text-[var(--text-primary)] ml-0">Organization AOI:</span>
+        <div className="flex items-center gap-1.5">
+          <span className="w-4 h-3 rounded-sm shrink-0 border-2 border-dashed" style={{ borderColor: "#2a3d35", background: "rgba(61, 79, 70, 0.2)" }} aria-hidden="true" />
+          Monitored forest boundary
+        </div>
+        <span className="font-semibold text-[var(--text-primary)] ml-3">Fill (severity):</span>
         {[
           { color: "#e9c46a", label: "Low" },
           { color: "#f4a261", label: "Medium" },

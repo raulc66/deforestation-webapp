@@ -24,7 +24,7 @@ export default function RegisterPage() {
     setLoading(false);
     if (res.ok) {
       toast.success(`Welcome, ${res.user.name}`);
-      navigate("/dashboard", { replace: true });
+      navigate("/trial/setup", { replace: true });
     } else {
       setError(res.error);
     }
@@ -45,9 +45,10 @@ export default function RegisterPage() {
           </div>
         </div>
 
-        <h2 className="text-3xl font-bold tracking-tight mb-2">Join the watch</h2>
+        <h2 className="text-3xl font-bold tracking-tight mb-2">Start a 14-day trial</h2>
         <p className="text-[#4a524a] mb-8">
-          Create an account to start monitoring deforestation alerts in real time.
+          Create an account to monitor forests for your organization. After registration
+          you will name the organization and add a forest to watch.
         </p>
 
         <form onSubmit={onSubmit} className="space-y-5" data-testid="register-form">

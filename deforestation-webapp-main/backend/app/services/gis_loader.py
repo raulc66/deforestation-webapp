@@ -190,6 +190,43 @@ class GISIndex:
             "source": self.info.source,
         }
 
+    def classify_detailed(self, lat: float, lon: float) -> dict:
+        """Like ``classify`` but includes matched feature metadata when available."""
+        if not self._built:
+            self.build()
+
+        cell = _coord_to_cell(lat, lon)
+        candidates = self._grid.get(cell, [])
+
+        best_type = "unknown"
+        best_conf = _DEFAULT_CONFIDENCE["unknown"]
+        best_priority = _PRIORITY["unknown"]
+        best_feat: GISFeature | None = None
+
+        for idx in candidates:
+            feat = self.features[idx]
+            if not _bbox_contains(feat.bbox, lat, lon):
+                continue
+            if not _point_in_polygon(lat, lon, feat.polygon):
+                continue
+            priority = _PRIORITY.get(feat.land_cover_type, _PRIORITY["unknown"])
+            if priority < best_priority:
+                best_priority = priority
+                best_type = feat.land_cover_type
+                best_conf = feat.confidence
+                best_feat = feat
+
+        result = {
+            "land_cover_type": best_type,
+            "confidence": best_conf,
+            "source": self.info.source,
+            "clc_code": best_feat.clc_code if best_feat else None,
+            "label": best_feat.label if best_feat else None,
+            "dataset_version": self.info.version,
+            "reference_date": self.info.last_updated,
+        }
+        return result
+
 
 # ---------------------------------------------------------------------------
 # Geometry helpers — pure Python, no external dependencies

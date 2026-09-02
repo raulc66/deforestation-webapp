@@ -8,7 +8,12 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING
 
-from app.core.ecosystem.incident_categories import INCIDENT_CATEGORIES, IncidentCategory
+from app.core.ecosystem.incident_categories import (
+    INCIDENT_CATEGORIES,
+    IncidentCategory,
+    PHASE0_ORACLE_CATEGORY_KEYS,
+    map_forest_event_type_to_incident,
+)
 
 if TYPE_CHECKING:
     from .analytics_service import AnalyticsService
@@ -78,20 +83,25 @@ class IncidentAggregationRegistry:
         for agg in self._aggregators.values():
             results[agg.aggregator_id] = await agg.aggregate(analytics_svc)
 
-        by_category: dict[str, dict] = {cat: {"event_count": 0} for cat in INCIDENT_CATEGORIES}
-        for payload in results.values():
-            for cat in payload.get("incident_categories", []):
-                if cat in by_category:
-                    by_category[cat]["source_aggregator"] = payload["aggregator_id"]
+        by_event_type = await analytics_svc.by_event_type()
+        by_category: dict[str, dict] = {
+            cat: {"event_count": 0} for cat in PHASE0_ORACLE_CATEGORY_KEYS
+        }
+        for row in by_event_type:
+            category = map_forest_event_type_to_incident(str(row.get("event_type", "unknown")))
+            if category not in by_category:
+                by_category[category] = {"event_count": 0}
+            count = int(row.get("event_count", 0))
+            area = float(row.get("affected_area_ha", 0.0))
+            by_category[category]["event_count"] += count
+            if count > 0:
+                existing_area = float(by_category[category].get("affected_area_ha", 0.0))
+                by_category[category]["affected_area_ha"] = existing_area + area
 
-        wildfire = results.get("wildfire", {})
-        wf_events = wildfire.get("wildfire_events", {})
-        by_category[IncidentCategory.WILDFIRE.value]["event_count"] = int(
-            wf_events.get("event_count", 0)
-        )
-        by_category[IncidentCategory.WILDFIRE.value]["affected_area_ha"] = wf_events.get(
-            "affected_area_ha", 0.0
-        )
+        for agg in self._aggregators.values():
+            for cat in agg.incident_categories:
+                if cat in by_category and by_category[cat]["event_count"] > 0:
+                    by_category[cat]["source_aggregator"] = agg.aggregator_id
 
         return {
             "aggregators": results,
