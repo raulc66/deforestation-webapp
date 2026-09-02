@@ -88,9 +88,9 @@ export default function IntelligenceCommandCenter({
   const org = monitoringStatus?.organization ?? {};
   const entitlements = monitoringStatus?.entitlements ?? {};
   const disturbance = monitoringStatus?.disturbance_summary ?? {};
-  const evidenceItems = commandCenter?.intelligence_evidence?.items ?? [];
 
   const priorityQueue = useMemo(() => {
+    const evidenceItems = commandCenter?.intelligence_evidence?.items ?? [];
     const disturbances = evidenceItems.filter(
       (item) => item.incident_category === "forest_disturbance"
     );
@@ -99,7 +99,7 @@ export default function IntelligenceCommandCenter({
       (item) => item.incident_category !== "forest_disturbance"
     );
     return [...sorted, ...others];
-  }, [evidenceItems]);
+  }, [commandCenter?.intelligence_evidence?.items]);
 
   const selectedItem =
     priorityQueue.find((item) => item.event_id === selectedId) ??
