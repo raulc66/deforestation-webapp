@@ -68,6 +68,23 @@ describe("AuthProvider session transitions", () => {
     expect(sessionStorage.getItem("forestwatch.selectedOrganizationId")).toBeNull();
   });
 
+  it("treats anonymous /auth/me 401 as expected probing, not a thrown user-facing error", async () => {
+    mockApiGet.mockResolvedValue({ data: null, status: 401 });
+    render(
+      <AuthProvider>
+        <Probe />
+      </AuthProvider>
+    );
+    await waitFor(() => expect(screen.getByTestId("auth-user")).toHaveTextContent("anonymous"));
+    expect(mockApiGet).toHaveBeenCalledWith(
+      "/auth/me",
+      expect.objectContaining({ validateStatus: expect.any(Function) })
+    );
+    const [, options] = mockApiGet.mock.calls[0];
+    expect(options.validateStatus(401)).toBe(true);
+    expect(options.validateStatus(500)).toBe(false);
+  });
+
   it("clears organization context before login and register", async () => {
     mockApiGet.mockRejectedValue({ response: { status: 401 } });
     mockApiPost.mockImplementation((url) => {

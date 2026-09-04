@@ -99,6 +99,25 @@ describe("IntelligenceCommandCenter", () => {
     expect(screen.getByText(/Potential Unauthorized Forest Activity/i)).toBeInTheDocument();
   });
 
+  it("focuses the existing investigation panel when a demo investigation is opened", () => {
+    render(
+      <MemoryRouter>
+        <IntelligenceCommandCenter
+          monitoringStatus={MOCK_MONITORING}
+          commandCenter={{ intelligence_evidence: { items: [MOCK_EVIDENCE_ITEM] } }}
+          events={{ active: [] }}
+          loading={false}
+          isDemo
+          openedInvestigationEventId="ie-1"
+          onInvestigate={jest.fn()}
+        />
+      </MemoryRouter>
+    );
+    expect(screen.getByTestId("investigation-opened")).toBeInTheDocument();
+    expect(screen.getByTestId("investigation-opened-copy")).toBeInTheDocument();
+    expect(screen.getByTestId("disturbance-investigate-btn")).toHaveTextContent("Investigation open");
+  });
+
   it("explains the next action when no forests are monitored", () => {
     render(
       <MemoryRouter>
@@ -168,5 +187,21 @@ describe("DisturbanceInvestigationPanel", () => {
     expect(screen.getByTestId("investigation-evidence")).toBeInTheDocument();
     expect(screen.getByTestId("investigation-unknown")).toBeInTheDocument();
     expect(screen.getByTestId("investigation-action")).toBeInTheDocument();
+  });
+
+  it("visibly opens the existing investigation panel when opened", () => {
+    render(
+      <DisturbanceInvestigationPanel
+        item={MOCK_EVIDENCE_ITEM}
+        onInvestigate={jest.fn()}
+        isDemo
+        opened
+      />
+    );
+    expect(screen.getByTestId("investigation-opened")).toBeInTheDocument();
+    expect(screen.getByTestId("investigation-opened-copy")).toBeInTheDocument();
+    expect(screen.getByTestId("disturbance-investigate-btn")).toHaveTextContent("Investigation open");
+    expect(screen.getByTestId("investigation-observation")).toBeInTheDocument();
+    expect(screen.getByTestId("investigation-evidence")).toBeInTheDocument();
   });
 });

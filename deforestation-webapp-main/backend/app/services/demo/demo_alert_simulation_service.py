@@ -20,9 +20,46 @@ from app.models.customer_alert import (
 )
 
 
-def demo_simulation_dedupe_key(canonical: str, session_id: str) -> str:
-    """Per-session demo identity. Unique index still applies to the full string."""
-    return f"{canonical}:demo:{session_id}"
+def demo_simulation_dedupe_key(
+    canonical: str, session_id: str, reset_count: int = 0
+) -> str:
+    """Per-session, per-restart demo identity. Unique index still applies."""
+    return f"{canonical}:demo:{session_id}:{int(reset_count)}"
+
+
+def visitor_scope_from_delivery(row: dict[str, Any]) -> tuple[str, int] | None:
+    """Return (session_id, reset_count) for visitor-generated demo simulations.
+
+    Curated fixtures and production deliveries have no visitor scope.
+    Older rows stored ``:demo:{session_id}`` without a reset count.
+    """
+    evidence = row.get("evidence_summary") or {}
+    explicit = evidence.get("demo_session_id")
+    if explicit:
+        raw_reset = evidence.get("demo_reset_count")
+        return str(explicit), int(raw_reset or 0)
+    key = str(row.get("dedupe_key") or "")
+    marker = ":demo:"
+    if marker not in key or evidence.get("simulated") is not True:
+        return None
+    rest = key.rsplit(marker, 1)[-1]
+    if not rest:
+        return None
+    if ":" in rest:
+        session_part, maybe_reset = rest.rsplit(":", 1)
+        if maybe_reset.isdigit():
+            return session_part, int(maybe_reset)
+    return rest, 0
+
+
+def delivery_visible_in_demo_session(
+    row: dict[str, Any], *, session_id: str, reset_count: int
+) -> bool:
+    scope = visitor_scope_from_delivery(row)
+    if scope is None:
+        return True
+    visitor_id, visitor_reset = scope
+    return visitor_id == session_id and visitor_reset == int(reset_count)
 
 
 class DemoAlertSimulationService:
@@ -51,6 +88,8 @@ class DemoAlertSimulationService:
     ) -> dict[str, Any]:
         org = await self._catalog.ensure_seeded()
         organization_id = str(org.id)
+        session = await self._sessions.require(session_id)
+        reset_count = int(session.reset_count)
         policies = await self._policies.list_for_organization(
             organization_id, enabled_only=True
         )
@@ -68,7 +107,7 @@ class DemoAlertSimulationService:
             intelligence_event_id=str(event["id"]),
             alert_stage=AlertStage.INITIAL.value,
         )
-        demo_key = demo_simulation_dedupe_key(canonical, session_id)
+        demo_key = demo_simulation_dedupe_key(canonical, session_id, reset_count)
         existing = await self._deliveries.find_by_dedupe_key(demo_key)
         if existing is not None:
             return self._public(existing, simulated=True, already=True)
@@ -89,6 +128,8 @@ class DemoAlertSimulationService:
             ),
             evidence_summary={
                 "simulated": True,
+                "demo_session_id": session_id,
+                "demo_reset_count": reset_count,
                 "region": event.get("region"),
                 "incident_category": event.get("incident_category"),
             },

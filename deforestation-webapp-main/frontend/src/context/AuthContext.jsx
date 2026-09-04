@@ -14,7 +14,14 @@ export function AuthProvider({ children }) {
 
   const refreshUser = useCallback(async () => {
     try {
-      const { data } = await api.get("/auth/me");
+      const { data, status } = await api.get("/auth/me", {
+        validateStatus: (code) => code === 200 || code === 401,
+      });
+      if (status === 401 || !data) {
+        clearClientWorkspaceState();
+        setUser(false);
+        return null;
+      }
       setUser(data);
       return data;
     } catch {

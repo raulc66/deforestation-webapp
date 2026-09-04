@@ -25,6 +25,7 @@ const DemoContext = createContext({
   lastSimulation: null,
   conversion: null,
   exhaustedMessage: null,
+  openedInvestigationEventId: null,
   resetDemo: async () => {},
   setGuideStep: async () => {},
   openScenario: async () => {},
@@ -43,6 +44,7 @@ export function DemoProvider({ children }) {
   const [lastSimulation, setLastSimulation] = useState(null);
   const [conversion, setConversion] = useState(null);
   const [exhaustedMessage, setExhaustedMessage] = useState(null);
+  const [openedInvestigationEventId, setOpenedInvestigationEventId] = useState(null);
 
   const refresh = useCallback(async () => {
     if (!isDemo) {
@@ -73,6 +75,7 @@ export function DemoProvider({ children }) {
       setLastSimulation(null);
       setConversion(null);
       setExhaustedMessage(null);
+      setOpenedInvestigationEventId(null);
       return;
     }
     refresh();
@@ -98,6 +101,7 @@ export function DemoProvider({ children }) {
     setLastSimulation(null);
     setConversion(null);
     setExhaustedMessage(null);
+    setOpenedInvestigationEventId(null);
     setStatus(next);
     return next;
   }, []);
@@ -119,7 +123,7 @@ export function DemoProvider({ children }) {
       try {
         const next = await consumeDemoInvestigation(eventId);
         applyStatus(next);
-        setConversion("investigation");
+        setOpenedInvestigationEventId(eventId || null);
         return { ok: true, data: next };
       } catch (err) {
         const message = budgetErrorMessage(err);
@@ -169,6 +173,7 @@ export function DemoProvider({ children }) {
       lastSimulation,
       conversion,
       exhaustedMessage,
+      openedInvestigationEventId,
       resetDemo,
       setGuideStep,
       openScenario,
@@ -186,6 +191,7 @@ export function DemoProvider({ children }) {
       lastSimulation,
       conversion,
       exhaustedMessage,
+      openedInvestigationEventId,
       resetDemo,
       setGuideStep,
       openScenario,

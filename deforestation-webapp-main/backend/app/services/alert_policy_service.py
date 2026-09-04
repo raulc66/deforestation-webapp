@@ -50,9 +50,13 @@ from app.repositories.forest_monitoring_area_repository import ForestMonitoringA
 from app.repositories.organization_notification_channel_repository import (
     OrganizationNotificationChannelRepository,
 )
+from app.services.demo.demo_alert_simulation_service import (
+    delivery_visible_in_demo_session,
+)
 from app.services.entitlement_service import EntitlementService
 
 MAX_RECENT_DELIVERIES = 200
+DEMO_HISTORY_SCAN_LIMIT = 2000
 OVERVIEW_RECENT_LIMIT = 6
 
 
@@ -354,13 +358,22 @@ class AlertPolicyService:
         *,
         limit: int = 50,
         lifecycle: str | None = None,
+        demo_session_id: str | None = None,
+        demo_reset_count: int | None = None,
     ) -> dict:
         bounded = max(1, min(int(limit or 50), MAX_RECENT_DELIVERIES))
+        fetch_limit = DEMO_HISTORY_SCAN_LIMIT if demo_session_id else bounded
         rows = await self._deliveries.list_for_organization(
             organization_id,
-            limit=bounded,
+            limit=fetch_limit,
             lifecycle=lifecycle,
+            **self._demo_visitor_list_kwargs(demo_session_id),
         )
+        rows = self._scope_demo_visitor_rows(
+            rows,
+            demo_session_id=demo_session_id,
+            demo_reset_count=demo_reset_count,
+        )[:bounded]
         items = await self._shape_deliveries(organization_id, rows)
         return {"items": items, "total": len(items)}
 
@@ -369,14 +382,32 @@ class AlertPolicyService:
         organization_id: str,
         *,
         actor_role: str = "",
+        demo_session_id: str | None = None,
+        demo_reset_count: int | None = None,
     ) -> AlertOperationsOverview:
         policies = await self._policies.list_for_organization(organization_id)
         channels = await self._channels.list_for_organization(organization_id)
-        counts = await self._deliveries.count_by_lifecycle(organization_id)
-        recent_rows = await self._deliveries.list_for_organization(
-            organization_id,
-            limit=OVERVIEW_RECENT_LIMIT,
-        )
+        if demo_session_id is not None:
+            scoped_rows = self._scope_demo_visitor_rows(
+                await self._deliveries.list_for_organization(
+                    organization_id,
+                    limit=DEMO_HISTORY_SCAN_LIMIT,
+                    **self._demo_visitor_list_kwargs(demo_session_id),
+                ),
+                demo_session_id=demo_session_id,
+                demo_reset_count=demo_reset_count,
+            )
+            counts: dict[str, int] = {}
+            for row in scoped_rows:
+                key = str(row.get("lifecycle") or "unknown")
+                counts[key] = counts.get(key, 0) + 1
+            recent_rows = scoped_rows[:OVERVIEW_RECENT_LIMIT]
+        else:
+            counts = await self._deliveries.count_by_lifecycle(organization_id)
+            recent_rows = await self._deliveries.list_for_organization(
+                organization_id,
+                limit=OVERVIEW_RECENT_LIMIT,
+            )
         recent = await self._shape_deliveries(organization_id, recent_rows)
 
         pending = int(counts.get(AlertLifecycle.PENDING.value, 0))
@@ -476,6 +507,30 @@ class AlertPolicyService:
                 )
             )
         return items
+
+    @staticmethod
+    def _demo_visitor_list_kwargs(demo_session_id: str | None) -> dict[str, str]:
+        if not demo_session_id:
+            return {}
+        return {"demo_visitor_session_id": demo_session_id}
+
+    @staticmethod
+    def _scope_demo_visitor_rows(
+        rows: list[dict[str, Any]],
+        *,
+        demo_session_id: str | None,
+        demo_reset_count: int | None,
+    ) -> list[dict[str, Any]]:
+        if not demo_session_id:
+            return rows
+        reset_count = int(demo_reset_count or 0)
+        return [
+            row
+            for row in rows
+            if delivery_visible_in_demo_session(
+                row, session_id=demo_session_id, reset_count=reset_count
+            )
+        ]
 
     @staticmethod
     def _channel_result_is_simulated(result: dict[str, Any]) -> bool:

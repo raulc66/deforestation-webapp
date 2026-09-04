@@ -11,7 +11,16 @@ jest.mock("@/components/intelligence/IntelligenceSection", () => () => (
 ));
 
 const mockAuth = { user: { name: "Ada Forester", email: "ada@org.org" } };
-const mockDemo = { isDemo: false };
+const mockDemo = {
+  isDemo: false,
+  conversion: null,
+  exhaustedMessage: null,
+  status: { guide: [], scenarios: [], budget: { remaining: {}, limits: {} } },
+  resetDemo: jest.fn(),
+  setGuideStep: jest.fn(),
+  openScenario: jest.fn(),
+  recordEvent: jest.fn(),
+};
 const mockOrg = { currentOrganization: { id: "org-1", name: "Carpathian Watch" } };
 let mockTrial = {
   status: { commercial_lifecycle: "trial", onboarding: { complete: true } },
@@ -28,6 +37,7 @@ jest.mock("@/context/DemoContext", () => ({
 }));
 
 jest.mock("@/lib/demo", () => ({
+  ...jest.requireActual("@/lib/demo"),
   isDemoUser: () => false,
 }));
 
@@ -42,6 +52,8 @@ jest.mock("@/context/TrialContext", () => ({
 describe("Operator dashboard", () => {
   beforeEach(() => {
     mockDemo.isDemo = false;
+    mockDemo.conversion = null;
+    mockDemo.exhaustedMessage = null;
     mockTrial = {
       status: { commercial_lifecycle: "trial", onboarding: { complete: true } },
       isTrial: true,
@@ -64,5 +76,40 @@ describe("Operator dashboard", () => {
     expect(screen.queryByTestId("recent-alerts-table")).not.toBeInTheDocument();
     expect(screen.queryByTestId("module-card-ai_predictions")).not.toBeInTheDocument();
     expect(screen.queryByTestId("open-map-link")).not.toBeInTheDocument();
+  });
+});
+
+describe("Demo dashboard conversion timing", () => {
+  beforeEach(() => {
+    mockDemo.isDemo = true;
+    mockDemo.conversion = null;
+    mockDemo.exhaustedMessage = null;
+    mockDemo.status = {
+      guide: [],
+      scenarios: [],
+      budget: { remaining: { investigation: 5 }, limits: { investigation: 5 } },
+    };
+  });
+
+  it("does not show the conversion CTA after investigation alone", () => {
+    render(
+      <MemoryRouter>
+        <DashboardPage />
+      </MemoryRouter>
+    );
+    expect(screen.getByTestId("intelligence-section")).toBeInTheDocument();
+    expect(screen.queryByTestId("demo-conversion-cta")).not.toBeInTheDocument();
+  });
+
+  it("shows a non-blocking conversion prompt after a simulated alert", () => {
+    mockDemo.conversion = "alert";
+    render(
+      <MemoryRouter>
+        <DashboardPage />
+      </MemoryRouter>
+    );
+    expect(screen.getByTestId("intelligence-section")).toBeInTheDocument();
+    expect(screen.getByTestId("demo-conversion-cta")).toBeInTheDocument();
+    expect(screen.getByTestId("demo-conversion-alert")).toBeInTheDocument();
   });
 });

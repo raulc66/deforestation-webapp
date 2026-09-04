@@ -32,10 +32,14 @@ from app.models.user import UserPublic
 from app.services.demo.demo_alert_simulation_service import (
     DemoAlertSimulationService,
     demo_simulation_dedupe_key,
+    delivery_visible_in_demo_session,
+    visitor_scope_from_delivery,
 )
+from app.services.alert_policy_service import AlertPolicyService
 from app.services.demo.demo_rate_limit import check_demo_rate, reset_demo_rate_limiter
 from app.services.organization_context_service import OrganizationContextService
 from fixtures.demo_fakes import (
+    FakeAreaRepo,
     FakeChannelRepo,
     FakeDeliveryRepo,
     FakeIntelRepo,
@@ -316,6 +320,8 @@ class TestDemoAlertSimulation:
             alert_stage=AlertStage.INITIAL.value,
         )
         assert stored["dedupe_key"] == demo_simulation_dedupe_key(canonical, session_id)
+        assert stored["evidence_summary"]["demo_session_id"] == session_id
+        assert stored["evidence_summary"]["demo_reset_count"] == 0
         names = [row["event_name"] for row in store.product_events]
         assert "alert_simulation_used" in names
 
@@ -455,3 +461,233 @@ class TestDemoToken:
         payload = decode_token(token)
         assert payload["type"] == "demo"
         assert payload["sub"] == "sess-token"
+
+
+class _AllowAlerts:
+    async def can_receive_alerts(self, organization_id: str) -> bool:
+        return True
+
+
+def _history_service(store):
+    return AlertPolicyService(
+        FakePolicyRepo(store),
+        FakeChannelRepo(store),
+        FakeDeliveryRepo(store),
+        _AllowAlerts(),
+        app_secret="demo-test-secret",
+        area_repo=FakeAreaRepo(store),
+    )
+
+
+class TestDemoAlertHistoryIsolation:
+    @run_async
+    async def test_session_b_does_not_see_session_a_simulated_delivery(self):
+        store, catalog, sessions = build_catalog_and_sessions()
+        user_a, _, _ = await sessions.start()
+        user_b, _, _ = await sessions.start()
+        sid_a = str(user_a.id).removeprefix("demo:")
+        sid_b = str(user_b.id).removeprefix("demo:")
+        alerts = _alert_service(store, catalog, sessions)
+        await alerts.simulate(sid_a)
+        org = await catalog.ensure_seeded()
+        history = _history_service(store)
+        seen_a = await history.list_deliveries(
+            str(org.id), demo_session_id=sid_a, demo_reset_count=0
+        )
+        seen_b = await history.list_deliveries(
+            str(org.id), demo_session_id=sid_b, demo_reset_count=0
+        )
+        assert seen_a["total"] == 1
+        assert seen_b["total"] == 0
+        overview_b = await history.alert_operations_overview(
+            str(org.id), demo_session_id=sid_b, demo_reset_count=0
+        )
+        assert overview_b.sent_count == 0
+        assert overview_b.recent_deliveries == []
+
+    @run_async
+    async def test_session_b_sees_only_its_own_interactive_simulation(self):
+        store, catalog, sessions = build_catalog_and_sessions()
+        user_a, _, _ = await sessions.start()
+        user_b, _, _ = await sessions.start()
+        sid_a = str(user_a.id).removeprefix("demo:")
+        sid_b = str(user_b.id).removeprefix("demo:")
+        alerts = _alert_service(store, catalog, sessions)
+        first = await alerts.simulate(sid_a)
+        second = await alerts.simulate(sid_b)
+        org = await catalog.ensure_seeded()
+        history = _history_service(store)
+        seen_b = await history.list_deliveries(
+            str(org.id), demo_session_id=sid_b, demo_reset_count=0
+        )
+        assert seen_b["total"] == 1
+        assert seen_b["items"][0].id == second["id"]
+        assert seen_b["items"][0].id != first["id"]
+
+    @run_async
+    async def test_restart_hides_prior_interactive_history_for_the_same_session(self):
+        store, catalog, sessions = build_catalog_and_sessions()
+        user, _, _ = await sessions.start()
+        session_id = str(user.id).removeprefix("demo:")
+        alerts = _alert_service(store, catalog, sessions)
+        prior = await alerts.simulate(session_id)
+        await sessions.reset(session_id)
+        refreshed = await sessions.require(session_id)
+        assert refreshed.reset_count == 1
+        org = await catalog.ensure_seeded()
+        history = _history_service(store)
+        after_reset = await history.list_deliveries(
+            str(org.id),
+            demo_session_id=session_id,
+            demo_reset_count=refreshed.reset_count,
+        )
+        assert after_reset["total"] == 0
+        fresh = await alerts.simulate(session_id)
+        after_sim = await history.list_deliveries(
+            str(org.id),
+            demo_session_id=session_id,
+            demo_reset_count=refreshed.reset_count,
+        )
+        assert after_sim["total"] == 1
+        assert after_sim["items"][0].id == fresh["id"]
+        assert after_sim["items"][0].id != prior["id"]
+
+    @run_async
+    async def test_curated_shared_fixture_remains_visible_to_every_session(self):
+        from app.models.customer_alert import AlertDeliveryRecord, AlertLifecycle
+
+        store, catalog, sessions = build_catalog_and_sessions()
+        user_a, _, _ = await sessions.start()
+        user_b, _, _ = await sessions.start()
+        sid_a = str(user_a.id).removeprefix("demo:")
+        sid_b = str(user_b.id).removeprefix("demo:")
+        org = await catalog.ensure_seeded()
+        now = datetime.now(timezone.utc)
+        policies = list(store.policies.values())
+        await FakeDeliveryRepo(store).create(
+            AlertDeliveryRecord(
+                dedupe_key=f"{org.id}:seed:evt-curated:initial",
+                organization_id=str(org.id),
+                policy_id=str(policies[0]["id"]),
+                intelligence_event_id="evt-curated",
+                alert_stage=AlertStage.INITIAL.value,
+                reason="Seeded demonstration fixture.",
+                evidence_summary={"simulated": True, "seeded": True},
+                lifecycle=AlertLifecycle.SENT.value,
+                created_at=now,
+                updated_at=now,
+            )
+        )
+        alerts = _alert_service(store, catalog, sessions)
+        await alerts.simulate(sid_a)
+        history = _history_service(store)
+        seen_b = await history.list_deliveries(
+            str(org.id), demo_session_id=sid_b, demo_reset_count=0
+        )
+        assert seen_b["total"] == 1
+        assert seen_b["items"][0].intelligence_event_id == "evt-curated"
+        seen_a = await history.list_deliveries(
+            str(org.id), demo_session_id=sid_a, demo_reset_count=0
+        )
+        assert seen_a["total"] == 2
+
+    @run_async
+    async def test_production_history_is_unscoped_by_demo_session(self):
+        from fixtures.customer_alert_fakes import build_alert_environment
+        from app.models.customer_alert import AlertDeliveryRecord, AlertLifecycle
+
+        env = build_alert_environment()
+        channel_id = await env.add_email_channel("org-a")
+        policy_id = await env.add_policy(
+            "org-a",
+            area_ids=[env.area_ids["org-a"]],
+            channel_ids=[channel_id],
+        )
+        stored = await env.delivery_repo.create(
+            AlertDeliveryRecord(
+                dedupe_key="org-a:policy:evt-1:initial",
+                organization_id="org-a",
+                policy_id=policy_id,
+                intelligence_event_id="evt-1",
+                alert_stage=AlertStage.INITIAL.value,
+                reason="Live delivery",
+                lifecycle=AlertLifecycle.SENT.value,
+            )
+        )
+        payload = await env.policy_svc.list_deliveries("org-a")
+        scoped = await env.policy_svc.list_deliveries(
+            "org-a", demo_session_id="sess-other", demo_reset_count=0
+        )
+        assert payload["total"] == 1
+        assert scoped["total"] == 1
+        assert payload["items"][0].id == scoped["items"][0].id == stored["id"]
+
+    def test_http_demo_deliveries_hide_other_visitors(self):
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient
+
+        from app.api.customer_alert_routes import router as customer_alert_router
+        from app.api.deps import (
+            alert_policy_service_dep,
+            demo_session_service_dep,
+            get_organization_context,
+        )
+
+        async def _setup():
+            store, catalog, sessions = build_catalog_and_sessions()
+            user_a, _, _ = await sessions.start()
+            user_b, _, _ = await sessions.start()
+            sid_a = str(user_a.id).removeprefix("demo:")
+            org = await catalog.ensure_seeded()
+            alerts = _alert_service(store, catalog, sessions)
+            first = await alerts.simulate(sid_a)
+            history = _history_service(store)
+            return sessions, user_a, user_b, org, first, history
+
+        sessions, user_a, user_b, org, first, history = run_async(_setup)()
+
+        def _demo_ctx(user):
+            return OrganizationContext(
+                user=user,
+                organization_id=str(org.id),
+                organization_name=org.name,
+                organization_slug=org.slug,
+                membership_id="mem-demo",
+                role="owner",
+                membership_status="active",
+                is_demo=True,
+            )
+
+        app = FastAPI()
+        app.include_router(customer_alert_router, prefix="/api")
+        app.dependency_overrides[demo_session_service_dep] = lambda: sessions
+        app.dependency_overrides[alert_policy_service_dep] = lambda: history
+        app.dependency_overrides[get_organization_context] = lambda: _demo_ctx(user_b)
+        client = TestClient(app)
+        hidden = client.get("/api/customer-alerts/deliveries")
+        assert hidden.status_code == 200
+        assert hidden.json()["items"] == []
+        overview = client.get("/api/customer-alerts/overview").json()
+        assert overview["sent_count"] == 0
+
+        app.dependency_overrides[get_organization_context] = lambda: _demo_ctx(user_a)
+        visible = client.get("/api/customer-alerts/deliveries")
+        assert visible.status_code == 200
+        assert visible.json()["total"] == 1
+        assert visible.json()["items"][0]["id"] == first["id"]
+
+    def test_legacy_demo_dedupe_key_encodes_session_without_reset_count(self):
+        row = {
+            "dedupe_key": "org:pol:evt:initial:demo:sess-legacy",
+            "evidence_summary": {"simulated": True},
+        }
+        assert visitor_scope_from_delivery(row) == ("sess-legacy", 0)
+        assert delivery_visible_in_demo_session(
+            row, session_id="sess-legacy", reset_count=0
+        )
+        assert not delivery_visible_in_demo_session(
+            row, session_id="sess-other", reset_count=0
+        )
+        assert not delivery_visible_in_demo_session(
+            row, session_id="sess-legacy", reset_count=1
+        )

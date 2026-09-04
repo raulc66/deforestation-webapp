@@ -139,13 +139,16 @@ export default function IntelligenceSection() {
       return;
     }
     load();
-  }, [load, orgReady, organizationVersion, demo.status?.reset_count]);
+  }, [load, orgReady, organizationVersion, demo.status?.reset_count, demo.lastSimulation?.id]);
 
   const handleCreateInvestigation = useCallback(
     async (evt) => {
       if (isDemo) {
-        await demo.investigate(evt?.id ?? evt?.event_id);
-        demo.setGuideStep("evidence");
+        const eventId = evt?.id ?? evt?.event_id;
+        const result = await demo.investigate(eventId);
+        if (result?.ok) {
+          demo.setGuideStep("evidence");
+        }
         return;
       }
       const params = new URLSearchParams({
@@ -212,6 +215,7 @@ export default function IntelligenceSection() {
             isDemo={isDemo}
             focusedScenario={demo.status?.focused_scenario}
             scenarios={demo.status?.scenarios}
+            openedInvestigationEventId={demo.openedInvestigationEventId}
           />
         </div>
 

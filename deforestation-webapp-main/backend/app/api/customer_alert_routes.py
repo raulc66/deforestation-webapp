@@ -8,8 +8,12 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from app.api.deps import alert_policy_service_dep, get_organization_context
-from app.core.demo.identity import deny_demo_mutation
+from app.api.deps import (
+    alert_policy_service_dep,
+    demo_session_service_dep,
+    get_organization_context,
+)
+from app.core.demo.identity import deny_demo_mutation, is_demo_user
 from app.core.commercial.alert_semantics import (
     ALERT_EVIDENCE_STATES,
     ALERT_PRIORITY_LEVELS,
@@ -36,6 +40,23 @@ def _translate(exc: AppError) -> HTTPException:
     return HTTPException(status_code=exc.status_code, detail=exc.message)
 
 
+async def _demo_delivery_scope(org_ctx: OrganizationContext, demo_sessions) -> tuple[str | None, int | None]:
+    """Visitor-generated demo history is scoped to the current session restart."""
+    if not org_ctx.is_demo or not is_demo_user(org_ctx.user):
+        return None, None
+    session_id = str(org_ctx.user.id).removeprefix("demo:")
+    session = await demo_sessions.require(session_id)
+    return session_id, int(session.reset_count)
+
+
+async def demo_history_scope_dep(
+    org_ctx: OrganizationContext = Depends(get_organization_context),
+    demo_sessions=Depends(demo_session_service_dep),
+) -> tuple[str | None, int | None]:
+    """Production orgs skip session lookup. Tests may override this dependency."""
+    return await _demo_delivery_scope(org_ctx, demo_sessions)
+
+
 @router.get("/options")
 async def alert_configuration_options():
     """Configurable vocabulary for the alert policy form — no internal keys."""
@@ -56,10 +77,14 @@ async def alert_configuration_options():
 async def alert_operations_overview(
     org_ctx: OrganizationContext = Depends(get_organization_context),
     svc: AlertPolicyService = Depends(alert_policy_service_dep),
+    scope: tuple[str | None, int | None] = Depends(demo_history_scope_dep),
 ):
+    demo_session_id, demo_reset_count = scope
     return await svc.alert_operations_overview(
         org_ctx.organization_id,
         actor_role=org_ctx.role,
+        demo_session_id=demo_session_id,
+        demo_reset_count=demo_reset_count,
     )
 
 
@@ -243,11 +268,15 @@ async def list_alert_deliveries(
     lifecycle: str | None = Query(None),
     org_ctx: OrganizationContext = Depends(get_organization_context),
     svc: AlertPolicyService = Depends(alert_policy_service_dep),
+    scope: tuple[str | None, int | None] = Depends(demo_history_scope_dep),
 ):
     if lifecycle is not None and lifecycle not in {state.value for state in AlertLifecycle}:
         raise HTTPException(status_code=422, detail="Unsupported delivery status filter")
+    demo_session_id, demo_reset_count = scope
     return await svc.list_deliveries(
         org_ctx.organization_id,
         limit=limit,
         lifecycle=lifecycle,
+        demo_session_id=demo_session_id,
+        demo_reset_count=demo_reset_count,
     )

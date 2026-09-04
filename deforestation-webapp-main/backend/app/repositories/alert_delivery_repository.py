@@ -68,10 +68,20 @@ class AlertDeliveryRepository:
         *,
         limit: int = 50,
         lifecycle: str | None = None,
+        demo_visitor_session_id: str | None = None,
     ) -> list[dict]:
         query: dict = {"organization_id": organization_id}
         if lifecycle:
             query["lifecycle"] = lifecycle
+        if demo_visitor_session_id:
+            # Keep curated/shared rows and this visitor's simulations; drop other
+            # visitors' session-tagged rows at the source. Legacy rows without
+            # evidence.demo_session_id are still filtered in the read model.
+            query["$or"] = [
+                {"evidence_summary.demo_session_id": demo_visitor_session_id},
+                {"evidence_summary.demo_session_id": {"$exists": False}},
+                {"evidence_summary.demo_session_id": None},
+            ]
         cursor = self._col.find(query).sort("created_at", -1).limit(limit)
         return [_shape(doc) for doc in await cursor.to_list(length=limit)]
 

@@ -395,6 +395,7 @@ class FakeDeliveryRepo:
         *,
         limit: int = 50,
         lifecycle: str | None = None,
+        demo_visitor_session_id: str | None = None,
     ) -> list[dict]:
         rows = [
             row

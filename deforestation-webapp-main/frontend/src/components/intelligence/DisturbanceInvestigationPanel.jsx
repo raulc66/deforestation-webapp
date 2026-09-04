@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { MapPin, Repeat2, ShieldQuestion } from "lucide-react";
 import SurfaceCard from "@/components/product/SurfaceCard";
 import PriorityBadge from "@/components/product/PriorityBadge";
@@ -23,17 +23,29 @@ export default function DisturbanceInvestigationPanel({
   item,
   onInvestigate,
   isDemo = false,
+  opened = false,
   testId = "disturbance-investigation-panel",
 }) {
   const demo = useDemo();
   const trial = useTrial();
   const demoMode = isDemo || demo.isDemo;
+  const panelRef = useRef(null);
 
   useEffect(() => {
     if (!demoMode || !item) return;
     demo.recordEvent?.("evidence_viewed", { event_id: item.event_id });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [demoMode, item?.event_id]);
+
+  useEffect(() => {
+    if (!opened || !panelRef.current) return;
+    if (typeof panelRef.current.scrollIntoView === "function") {
+      panelRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+    if (typeof panelRef.current.focus === "function") {
+      panelRef.current.focus();
+    }
+  }, [opened, item?.event_id]);
 
   if (!item) {
     return (
@@ -75,7 +87,22 @@ export default function DisturbanceInvestigationPanel({
 
   return (
     <SurfaceCard variant="inset" className="p-5" testId={testId}>
-      <div className="fw-kicker mb-2">Investigation focus</div>
+      <div
+        ref={panelRef}
+        tabIndex={opened ? -1 : undefined}
+        className={opened ? "outline-none" : undefined}
+        data-testid={opened ? "investigation-opened" : undefined}
+      >
+      <div className="fw-kicker mb-2">{opened ? "Investigation open" : "Investigation focus"}</div>
+      {opened && (
+        <p
+          className="mb-3 text-sm text-[var(--text-secondary)] leading-relaxed"
+          data-testid="investigation-opened-copy"
+        >
+          Review observation, inference, and evidence for this prepared demonstration disturbance.
+          Satellite disturbance is not a legal finding.
+        </p>
+      )}
       <h3 className="text-base font-bold tracking-tight text-[var(--text-primary)] leading-snug">
         {assessment}
       </h3>
@@ -149,7 +176,10 @@ export default function DisturbanceInvestigationPanel({
         )}
       </section>
 
-      <section className="mt-5 pt-4 border-t border-[var(--surface-inset)]" data-testid="investigation-evidence">
+      <section
+        className={`mt-5 pt-4 border-t border-[var(--surface-inset)]${opened ? " rounded-md ring-1 ring-[var(--accent)]/40 px-3 pb-3" : ""}`}
+        data-testid="investigation-evidence"
+      >
         <EvidenceBlock summary={summary} disturbance={disturbance} />
       </section>
 
@@ -170,7 +200,7 @@ export default function DisturbanceInvestigationPanel({
             className="w-full fw-button-primary"
             data-testid="disturbance-investigate-btn"
           >
-            Open investigation
+            {opened ? "Investigation open" : "Open investigation"}
           </button>
         )}
         {demoMode && (
@@ -192,6 +222,7 @@ export default function DisturbanceInvestigationPanel({
           <TrialConversionCta moment="alert" />
         )}
       </section>
+      </div>
     </SurfaceCard>
   );
 }

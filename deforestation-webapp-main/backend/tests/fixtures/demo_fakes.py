@@ -220,6 +220,32 @@ class FakeDeliveryRepo:
         self._store.deliveries[did] = payload
         return dict(payload)
 
+    async def list_for_organization(
+        self,
+        organization_id: str,
+        *,
+        limit: int = 50,
+        lifecycle: str | None = None,
+        demo_visitor_session_id: str | None = None,
+    ) -> list[dict]:
+        rows = [
+            dict(row)
+            for row in self._store.deliveries.values()
+            if row.get("organization_id") == organization_id
+            and (lifecycle is None or row.get("lifecycle") == lifecycle)
+        ]
+        rows.sort(key=lambda row: row.get("created_at") or NOW, reverse=True)
+        return rows[:limit]
+
+    async def count_by_lifecycle(self, organization_id: str) -> dict[str, int]:
+        counts: dict[str, int] = {}
+        for row in self._store.deliveries.values():
+            if row.get("organization_id") != organization_id:
+                continue
+            key = str(row.get("lifecycle") or "unknown")
+            counts[key] = counts.get(key, 0) + 1
+        return counts
+
 
 class FakeSessionRepo:
     def __init__(self, store: DemoStore) -> None:

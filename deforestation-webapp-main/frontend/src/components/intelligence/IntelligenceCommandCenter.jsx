@@ -82,6 +82,7 @@ export default function IntelligenceCommandCenter({
   isDemo = false,
   focusedScenario = null,
   scenarios = [],
+  openedInvestigationEventId = null,
 }) {
   const [selectedId, setSelectedId] = useState(null);
 
@@ -107,13 +108,20 @@ export default function IntelligenceCommandCenter({
     null;
 
   useEffect(() => {
+    if (openedInvestigationEventId) {
+      setSelectedId(openedInvestigationEventId);
+    }
+  }, [openedInvestigationEventId]);
+
+  useEffect(() => {
+    if (openedInvestigationEventId) return;
     if (!focusedScenario || !priorityQueue.length) return;
     const scenario = scenarios.find((item) => item.id === focusedScenario);
     const region = scenario?.region;
     if (!region) return;
     const match = priorityQueue.find((item) => item.region === region);
     if (match) setSelectedId(match.event_id);
-  }, [focusedScenario, priorityQueue, scenarios]);
+  }, [focusedScenario, priorityQueue, scenarios, openedInvestigationEventId]);
 
   const activeCount = events?.active?.length ?? 0;
   const highPriority = disturbance.high_critical_investigation_count ?? 0;
@@ -277,6 +285,10 @@ export default function IntelligenceCommandCenter({
             <DisturbanceInvestigationPanel
               item={selectedItem}
               isDemo={isDemo}
+              opened={Boolean(
+                openedInvestigationEventId &&
+                  selectedItem.event_id === openedInvestigationEventId
+              )}
               onInvestigate={
                 onInvestigate
                   ? () => onInvestigate({ id: selectedItem.event_id, region: selectedItem.region })

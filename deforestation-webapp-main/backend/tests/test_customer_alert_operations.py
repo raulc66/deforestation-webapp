@@ -7,7 +7,10 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from app.api.customer_alert_routes import router as customer_alert_router
+from app.api.customer_alert_routes import (
+    demo_history_scope_dep,
+    router as customer_alert_router,
+)
 from app.api.deps import alert_policy_service_dep, get_current_user, get_organization_context
 from app.core.organization.organization_context import OrganizationContext
 from app.models.customer_alert import (
@@ -66,6 +69,7 @@ def _client(environment, *, org_id: str = "org-a", role: str = "owner") -> TestC
     app.dependency_overrides[get_current_user] = lambda: _user()
     app.dependency_overrides[get_organization_context] = lambda: _org_ctx(org_id, role)
     app.dependency_overrides[alert_policy_service_dep] = lambda: environment.policy_svc
+    app.dependency_overrides[demo_history_scope_dep] = lambda: (None, None)
     return TestClient(app)
 
 

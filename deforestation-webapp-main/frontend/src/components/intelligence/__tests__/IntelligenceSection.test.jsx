@@ -47,6 +47,7 @@ const mockDemoHook = {
   setGuideStep: jest.fn(),
   recordEvent: jest.fn(),
   status: { focused_scenario: null, scenarios: [] },
+  openedInvestigationEventId: null,
 };
 
 const mockOrgState = {
@@ -216,6 +217,7 @@ beforeEach(() => {
   jest.clearAllMocks();
   mockDemoHook.isDemo = false;
   mockDemoHook.investigate.mockClear();
+  mockDemoHook.openedInvestigationEventId = null;
   mockOrgState.selectedOrgId = "org-test-1";
   mockOrgState.loading = false;
   mockOrgState.currentOrganization = {
@@ -434,6 +436,47 @@ describe("IntelligenceSection", () => {
         expect(screen.getByTestId("intelligence-command-center")).toBeInTheDocument();
       });
       expect(mockDemoHook.investigate).not.toHaveBeenCalled();
+    });
+
+    it("opens the investigation panel after a successful demo investigate action", async () => {
+      mockDemoHook.isDemo = true;
+      mockDemoHook.investigate.mockImplementation(async (eventId) => {
+        mockDemoHook.openedInvestigationEventId = eventId;
+        return { ok: true, data: { demo: { budget: { remaining: { investigation: 4 } } } } };
+      });
+      fetchIntelligenceSummary.mockResolvedValue(MOCK_SUMMARY);
+      fetchIntelligenceEvents.mockResolvedValue(MOCK_EVENTS);
+      fetchCommandCenter.mockResolvedValue({
+        intelligence_evidence: {
+          items: [
+            {
+              event_id: "evt-001",
+              region: "Carpathian Forest",
+              incident_category: "forest_disturbance",
+              disturbance_assessment: {
+                investigation_priority: "high",
+                assessment_label: "Potential Unauthorized Forest Activity",
+              },
+              evidence_summary: { providers: ["GFW"], evidence_state: "single_source" },
+            },
+          ],
+        },
+      });
+
+      const { rerender } = render(<IntelligenceSection />);
+      await waitFor(() => {
+        expect(screen.getByTestId("disturbance-investigate-btn")).toBeInTheDocument();
+      });
+      await userEvent.click(screen.getByTestId("disturbance-investigate-btn"));
+      expect(mockDemoHook.investigate).toHaveBeenCalledTimes(1);
+      expect(mockDemoHook.investigate).toHaveBeenCalledWith("evt-001");
+      expect(mockDemoHook.setGuideStep).toHaveBeenCalledWith("evidence");
+      rerender(<IntelligenceSection />);
+      expect(screen.getByTestId("investigation-opened")).toBeInTheDocument();
+      expect(screen.getByTestId("disturbance-investigate-btn")).toHaveTextContent("Investigation open");
+      expect(screen.getByTestId("investigation-observation")).toBeInTheDocument();
+      expect(screen.getByTestId("investigation-evidence")).toBeInTheDocument();
+      expect(screen.queryByTestId("demo-conversion-cta")).not.toBeInTheDocument();
     });
 
     it("does not load protected intelligence until organization context is ready", async () => {
