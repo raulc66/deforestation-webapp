@@ -24,7 +24,7 @@ from app.core.demo.identity import (
     is_demo_organization,
     is_demo_user,
 )
-from app.core.errors import ForbiddenError
+from app.core.errors import ForbiddenError, NotFoundError
 from app.core.organization.organization_context import OrganizationContext
 from app.models.customer_alert import AlertStage, alert_dedupe_key
 from app.models.organization import Organization
@@ -109,6 +109,7 @@ class TestDemoSessionBudget:
         assert user.provider == DEMO_USER_PROVIDER
         assert token
         assert status.budget.remaining["investigation"] == DEFAULT_DEMO_BUDGET["investigation"]
+        assert status.reset_count == 0
         assert status.focused_scenario is None
         assert [item["id"] for item in status.scenarios] == [item["id"] for item in SCENARIOS]
 
@@ -186,6 +187,7 @@ class TestDemoSessionBudget:
         again_user, _, status = await sessions.start(existing_session_id=session_id)
         assert str(again_user.id).removeprefix("demo:") == session_id
         assert status.budget.remaining["investigation"] == DEFAULT_DEMO_BUDGET["investigation"]
+        assert status.reset_count == 1
         await sessions.consume(session_id, "investigation")
         refreshed = await sessions.status_for(session_id)
         assert refreshed.budget.remaining["investigation"] == DEFAULT_DEMO_BUDGET["investigation"] - 1
@@ -305,7 +307,8 @@ class TestDemoAlertSimulation:
         stored = next(iter(store.deliveries.values()))
         assert stored["delivery_results"][0]["simulated"] is True
         assert stored["lifecycle"] == "sent"
-        assert "no message was sent" in stored["reason"].lower()
+        assert "notification simulated" in stored["reason"].lower()
+        assert "no message was sent" not in stored["reason"].lower()
         canonical = alert_dedupe_key(
             organization_id=stored["organization_id"],
             policy_id=stored["policy_id"],
@@ -365,10 +368,10 @@ class TestDemoAlertSimulation:
         user, _, _ = await sessions.start()
         session_id = str(user.id).removeprefix("demo:")
         alerts = _alert_service(store, catalog, sessions)
-        await sessions.consume(session_id, "alert_simulation")
         first = await alerts.simulate(session_id)
         await sessions.consume(session_id, "alert_simulation")
         second = await alerts.simulate(session_id)
+        await sessions.consume(session_id, "alert_simulation")
         assert first["already_recorded"] is False
         assert second["already_recorded"] is True
         status = await sessions.status_for(session_id)
@@ -393,6 +396,21 @@ class TestDemoAlertSimulation:
         alerts = _alert_service(store, catalog, sessions)
         with pytest.raises(ForbiddenError):
             await alerts.simulate(session_id, event_id="real-1")
+
+    @run_async
+    async def test_failed_simulate_does_not_consume_alert_budget(self):
+        store, catalog, sessions = build_catalog_and_sessions()
+        user, _, _ = await sessions.start()
+        session_id = str(user.id).removeprefix("demo:")
+        alerts = _alert_service(store, catalog, sessions)
+        with pytest.raises(NotFoundError):
+            await alerts.simulate(session_id, event_id="missing-event")
+            await sessions.consume(session_id, "alert_simulation")
+        remaining = (await sessions.status_for(session_id)).budget.remaining[
+            "alert_simulation"
+        ]
+        assert remaining == DEFAULT_DEMO_BUDGET["alert_simulation"]
+        assert store.deliveries == {}
 
 
 class TestDemoBillingGuard:

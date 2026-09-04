@@ -80,7 +80,7 @@ class DemoAlertSimulationService:
             intelligence_event_id=str(event["id"]),
             alert_stage=AlertStage.INITIAL.value,
             monitored_area_ids=[],
-            reason="Demonstration simulated match — no message was sent.",
+            reason="Demonstration notification simulated.",
             priority=str(
                 ((event.get("metadata") or {}).get("forest_disturbance") or {}).get(
                     "investigation_priority"

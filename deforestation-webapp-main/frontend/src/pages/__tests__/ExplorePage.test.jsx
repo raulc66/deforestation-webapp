@@ -224,6 +224,7 @@ describe("Demo investigation surface", () => {
     expect(screen.getByTestId("intelligence-command-center")).toBeInTheDocument();
     expect(screen.getByTestId("command-center-org-name")).toHaveTextContent("ForestWatch Demonstration");
     expect(screen.getByTestId("command-center-area-metric")).toHaveTextContent("3");
+    expect(screen.getByTestId("command-center-area-metric")).toHaveTextContent("Monitored forests");
     expect(screen.getByTestId("command-center-high-metric")).toHaveTextContent("1");
   });
 });

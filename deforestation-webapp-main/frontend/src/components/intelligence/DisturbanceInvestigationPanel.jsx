@@ -11,6 +11,7 @@ import {
 import { useDemo } from "@/context/DemoContext";
 import { useTrial } from "@/context/TrialContext";
 import TrialConversionCta from "@/components/trial/TrialConversionCta";
+import { demoSimulationNotice } from "@/lib/demo";
 
 const ASSESSMENT_LABEL = "Potential Unauthorized Forest Activity";
 
@@ -65,9 +66,12 @@ export default function DisturbanceInvestigationPanel({
   };
 
   const handleSimulate = async () => {
-    await demo.simulateAlert?.(item.event_id);
-    demo.setGuideStep?.("monitor");
+    const result = await demo.simulateAlert?.(item.event_id);
+    if (result?.ok) {
+      demo.setGuideStep?.("monitor");
+    }
   };
+  const simulationNotice = demoSimulationNotice(demo.lastSimulation);
 
   return (
     <SurfaceCard variant="inset" className="p-5" testId={testId}>
@@ -179,9 +183,9 @@ export default function DisturbanceInvestigationPanel({
             Simulate a notification
           </button>
         )}
-        {demo.lastSimulation?.simulated && (
+        {simulationNotice && (
           <p className="mt-2 text-xs text-[var(--text-secondary)]" data-testid="demo-simulated-delivery">
-            Simulated delivery — no message was sent.
+            {simulationNotice}
           </p>
         )}
         {trial.isTrial && !demoMode && (

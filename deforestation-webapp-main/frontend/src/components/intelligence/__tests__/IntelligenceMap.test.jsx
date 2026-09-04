@@ -1296,6 +1296,85 @@ describe("IntelligenceMap", () => {
       expect(screen.getByTestId("layer-toggle-monitored_areas")).toBeInTheDocument();
     });
 
+    it("labels the AOI control as Monitored forests in demonstration mode", async () => {
+      fetchMapOverlay.mockResolvedValue({
+        ...MOCK_OVERLAY,
+        monitored_areas: [
+          {
+            id: "a1",
+            name: "Harghita Forest Reserve",
+            geometry: {
+              type: "Polygon",
+              coordinates: [[[25.5, 46.8], [26.5, 46.8], [26.5, 47.5], [25.5, 47.5], [25.5, 46.8]]],
+            },
+          },
+        ],
+      });
+      render(<IntelligenceMap demoMode />);
+      await waitForLoad();
+      const toggle = screen.getByTestId("layer-toggle-monitored_areas");
+      expect(toggle).toHaveTextContent("Monitored forests");
+      expect(toggle.querySelector("input")).toHaveAttribute(
+        "aria-label",
+        "Toggle Monitored forests layer"
+      );
+      expect(screen.queryByText("Organization AOIs")).not.toBeInTheDocument();
+      expect(screen.queryByTestId("layer-toggle-events")).not.toBeInTheDocument();
+    });
+
+    it("toggles the monitored forests layer off in demonstration mode", async () => {
+      fetchMapOverlay.mockResolvedValue({
+        ...MOCK_OVERLAY,
+        monitored_areas: [
+          {
+            id: "a1",
+            name: "Harghita Forest Reserve",
+            geometry: {
+              type: "Polygon",
+              coordinates: [[[25.5, 46.8], [26.5, 46.8], [26.5, 47.5], [25.5, 47.5], [25.5, 46.8]]],
+            },
+          },
+        ],
+      });
+      render(<IntelligenceMap demoMode />);
+      await waitForLoad();
+      const input = screen.getByTestId("layer-toggle-monitored_areas").querySelector("input");
+      expect(input).toBeChecked();
+      mockRemoveLayer.mockClear();
+      fireEvent.click(input);
+      expect(input).not.toBeChecked();
+      await waitFor(() => {
+        expect(mockRemoveLayer).toHaveBeenCalled();
+      });
+    });
+
+    it("reloads overlay data when demonstration catalog epoch changes", async () => {
+      setupMocks();
+      fetchMapOverlay.mockResolvedValue({
+        ...MOCK_OVERLAY,
+        monitored_areas: [
+          {
+            id: "a1",
+            name: "Harghita Forest Reserve",
+            geometry: {
+              type: "Polygon",
+              coordinates: [[[25.5, 46.8], [26.5, 46.8], [26.5, 47.5], [25.5, 47.5], [25.5, 46.8]]],
+            },
+          },
+        ],
+      });
+      const { rerender } = render(<IntelligenceMap demoMode catalogEpoch={0} />);
+      await waitForLoad();
+      expect(fetchMapOverlay).toHaveBeenCalledTimes(1);
+      await act(async () => {
+        rerender(<IntelligenceMap demoMode catalogEpoch={1} />);
+      });
+      await waitFor(() => {
+        expect(fetchMapOverlay).toHaveBeenCalledTimes(2);
+      });
+      await waitForLoad();
+    });
+
     it("prefers overlay intelligence events with AOI enrichment", async () => {
       fetchMapOverlay.mockResolvedValue({
         ...MOCK_OVERLAY,

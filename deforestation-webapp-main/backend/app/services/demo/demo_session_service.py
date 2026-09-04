@@ -201,4 +201,5 @@ class DemoSessionService:
                 limits=dict(session.budget),
                 exhausted=budget_exhausted(session),
             ),
+            reset_count=int(session.reset_count),
         )

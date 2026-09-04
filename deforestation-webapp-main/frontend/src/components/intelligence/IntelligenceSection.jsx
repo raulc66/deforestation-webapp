@@ -124,7 +124,7 @@ export default function IntelligenceSection() {
 
   useEffect(() => {
     if (selectedOrgId) load();
-  }, [load, selectedOrgId, organizationVersion]);
+  }, [load, selectedOrgId, organizationVersion, demo.status?.reset_count]);
 
   const handleCreateInvestigation = useCallback(
     async (evt) => {
@@ -243,6 +243,7 @@ export default function IntelligenceSection() {
           evidenceByEventId={evidenceByEventId}
           organizationName={monitoringStatus?.organization?.name}
           demoMode={isDemo}
+          catalogEpoch={demo.status?.reset_count ?? 0}
         />
       </section>
       {!isDemo && <RegionalRiskSection />}

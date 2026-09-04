@@ -191,12 +191,14 @@ async def simulate_alert(
 ):
     _require_demo(user)
     check_demo_rate(session_id)
-    await svc.consume(session_id, "alert_simulation")
     body = await request.json() if request.headers.get("content-type", "").startswith("application/json") else {}
+    # Meter only after a successful simulate. A stale event id must not
+    # spend budget and then return an error with no delivery record.
     result = await alerts.simulate(
         session_id,
         event_id=(body or {}).get("event_id"),
     )
+    await svc.consume(session_id, "alert_simulation")
     status = await svc.status_for(session_id)
     return {**result, "demo": status.model_dump()}
 

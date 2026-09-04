@@ -47,4 +47,5 @@ class DemoStatusPublic(BaseModel):
     scenarios: list[dict[str, str]]
     guide: list[dict[str, str]]
     budget: DemoBudgetPublic
+    reset_count: int = 0
     is_demo: bool = True

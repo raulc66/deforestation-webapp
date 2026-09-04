@@ -713,7 +713,7 @@ function WeatherOverlayLayer({ weatherRegions, visible }) {
 // ---------------------------------------------------------------------------
 
 const LAYER_DEFS = [
-  { key: "monitored_areas", label: "Organization AOIs", color: "#2a3d35" },
+  { key: "monitored_areas", label: "Organization AOIs", demoLabel: "Monitored forests", color: "#2a3d35" },
   { key: "intelligence", label: "Intelligence signals", color: "#9b2226" },
   { key: "events", label: "Forest events", color: "#e76f51" },
   { key: "anomalies", label: "Anomalies", color: "#f4a261" },
@@ -727,27 +727,30 @@ function LayerControls({ layers, onToggle, demoMode = false }) {
     : LAYER_DEFS;
   return (
     <div className="flex flex-wrap gap-4 mb-2" data-testid="map-layer-controls">
-      {defs.map(({ key, label, color }) => (
-        <label
-          key={key}
-          className="inline-flex items-center gap-2 text-sm cursor-pointer select-none"
-          data-testid={`layer-toggle-${key}`}
-        >
-          <input
-            type="checkbox"
-            checked={layers[key]}
-            onChange={() => onToggle(key)}
-            className="accent-[#2d5a27] w-3.5 h-3.5"
-            aria-label={`Toggle ${label} layer`}
-          />
-          <span
-            className="w-2.5 h-2.5 rounded-full shrink-0"
-            style={{ background: color }}
-            aria-hidden="true"
-          />
-          <span className="text-[#1a1e1a] font-medium">{label}</span>
-        </label>
-      ))}
+      {defs.map(({ key, label, demoLabel, color }) => {
+        const visibleLabel = demoMode && demoLabel ? demoLabel : label;
+        return (
+          <label
+            key={key}
+            className="inline-flex items-center gap-2 text-sm cursor-pointer select-none"
+            data-testid={`layer-toggle-${key}`}
+          >
+            <input
+              type="checkbox"
+              checked={layers[key]}
+              onChange={() => onToggle(key)}
+              className="accent-[#2d5a27] w-3.5 h-3.5"
+              aria-label={`Toggle ${visibleLabel} layer`}
+            />
+            <span
+              className="w-2.5 h-2.5 rounded-full shrink-0"
+              style={{ background: color }}
+              aria-hidden="true"
+            />
+            <span className="text-[#1a1e1a] font-medium">{visibleLabel}</span>
+          </label>
+        );
+      })}
     </div>
   );
 }
@@ -838,7 +841,12 @@ function TimeRangeFilter({ value, onChange }) {
   );
 }
 
-export default function IntelligenceMap({ evidenceByEventId = {}, organizationName, demoMode = false }) {
+export default function IntelligenceMap({
+  evidenceByEventId = {},
+  organizationName,
+  demoMode = false,
+  catalogEpoch = 0,
+}) {
   const { selectedOrgId, organizationVersion } = useOrganization();
   const [mapEvents, setMapEvents] = useState([]);
   const [anomalies, setAnomalies] = useState([]);
@@ -925,7 +933,7 @@ export default function IntelligenceMap({ evidenceByEventId = {}, organizationNa
     return () => {
       alive = false;
     };
-  }, [selectedOrgId, organizationVersion, demoMode]);
+  }, [selectedOrgId, organizationVersion, demoMode, catalogEpoch]);
 
   const toggleLayer = useCallback(
     (key) => {

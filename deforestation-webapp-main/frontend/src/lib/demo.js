@@ -25,6 +25,13 @@ export function isMeterExhausted(status, meter) {
   return remaining != null && remaining <= 0;
 }
 
+export function demoSimulationNotice(result) {
+  if (result?.simulated || result?.already_recorded) {
+    return "Notification simulated";
+  }
+  return null;
+}
+
 export function budgetErrorMessage(err) {
   const code = err?.response?.data?.code;
   const detail = err?.response?.data?.detail;
