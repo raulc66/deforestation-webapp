@@ -111,7 +111,7 @@ export default function SalesPage() {
               href={COMMERCIAL.demoPath}
               data-testid="sales-nav-demo"
             >
-              View Demo
+              Explore demo
             </a>
           </nav>
         </div>
@@ -134,7 +134,7 @@ export default function SalesPage() {
               href={COMMERCIAL.demoPath}
               data-testid="sales-cta-demo"
             >
-              View Live Demo
+              Explore demo
             </a>
             <a
               className="sales-btn sales-btn-secondary"

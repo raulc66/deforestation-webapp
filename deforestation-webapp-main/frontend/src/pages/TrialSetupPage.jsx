@@ -108,8 +108,9 @@ export default function TrialSetupPage() {
       <div className="max-w-2xl mx-auto px-5 py-8" data-testid="trial-setup-page">
         <div className="fw-kicker mb-2">Trial organization</div>
         <h1 className="text-2xl font-bold tracking-tight">Set up monitoring</h1>
-        <p className="text-sm text-[var(--text-secondary)] mt-2 mb-6 leading-relaxed max-w-xl">
-          This is a real ForestWatch organization. Add one forest, then open the Command Center.
+        <p className="text-sm text-[var(--text-secondary)] mt-2 mb-6 leading-relaxed max-w-xl" data-testid="trial-workspace-notice">
+          You have left demonstration data. This is a real ForestWatch trial organization
+          for your account. Add one forest, then open the Command Center.
         </p>
 
         <form onSubmit={onSubmit} className="space-y-5" data-testid="trial-setup-form">

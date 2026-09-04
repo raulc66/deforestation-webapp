@@ -26,8 +26,10 @@ describe("SalesPage", () => {
       </MemoryRouter>
     );
     expect(screen.getByTestId("sales-cta-demo")).toHaveAttribute("href", "/explore");
+    expect(screen.getByTestId("sales-cta-demo")).toHaveTextContent(/Explore demo/i);
     expect(screen.getByTestId("sales-cta-demo")).toHaveAttribute("href", COMMERCIAL.demoPath);
     expect(screen.getByTestId("sales-nav-demo")).toHaveAttribute("href", "/explore");
+    expect(screen.getByTestId("sales-nav-demo")).toHaveTextContent(/Explore demo/i);
   });
 
   it("presents four license tiers at the listed prices", () => {

@@ -9,16 +9,31 @@ from app.services.auth_service import AuthService
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
+def _auth_cookie_scope() -> dict:
+    """Flags must match on set and clear so cross-site browsers drop the cookie.
+
+    Login, register, and the demonstration session set ``Secure; SameSite=None``.
+    Starlette's ``delete_cookie`` defaults to ``Secure=False; SameSite=Lax``, which
+    does not overwrite the hosted Netlify → Render cookie.
+    """
+    return {"httponly": True, "secure": True, "samesite": "none", "path": "/"}
+
+
 def _set_auth_cookies(resp: Response, access: str, refresh: str) -> None:
     s = get_settings()
+    scope = _auth_cookie_scope()
     resp.set_cookie(
-        "access_token", access, httponly=True, secure=True, samesite="none",
-        max_age=s.access_token_minutes * 60, path="/",
+        "access_token", access, max_age=s.access_token_minutes * 60, **scope
     )
     resp.set_cookie(
-        "refresh_token", refresh, httponly=True, secure=True, samesite="none",
-        max_age=s.refresh_token_days * 86400, path="/",
+        "refresh_token", refresh, max_age=s.refresh_token_days * 86400, **scope
     )
+
+
+def _clear_auth_cookies(response: Response) -> None:
+    expired = {**_auth_cookie_scope(), "max_age": 0}
+    response.set_cookie("access_token", "", expires=0, **expired)
+    response.set_cookie("refresh_token", "", expires=0, **expired)
 
 
 @router.post("/register", response_model=UserPublic)
@@ -48,8 +63,7 @@ async def login(
 
 @router.post("/logout")
 async def logout(response: Response):
-    response.delete_cookie("access_token", path="/")
-    response.delete_cookie("refresh_token", path="/")
+    _clear_auth_cookies(response)
     return {"ok": True}
 
 
@@ -70,7 +84,9 @@ async def refresh_token(
     new_access = await svc.refresh_access(token)
     s = get_settings()
     response.set_cookie(
-        "access_token", new_access, httponly=True, secure=True, samesite="none",
-        max_age=s.access_token_minutes * 60, path="/",
+        "access_token",
+        new_access,
+        max_age=s.access_token_minutes * 60,
+        **_auth_cookie_scope(),
     )
     return {"ok": True}

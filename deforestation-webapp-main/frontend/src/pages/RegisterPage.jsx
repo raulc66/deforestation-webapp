@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Trees, ArrowRight } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -15,6 +15,8 @@ export default function RegisterPage() {
   const [error, setError] = useState("");
   const { register } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const fromDemo = searchParams.get("from") === "demo";
 
   const onSubmit = async (e) => {
     e.preventDefault();
@@ -46,9 +48,10 @@ export default function RegisterPage() {
         </div>
 
         <h2 className="text-3xl font-bold tracking-tight mb-2">Start a 14-day trial</h2>
-        <p className="text-[#4a524a] mb-8">
-          Create an account to monitor forests for your organization. After registration
-          you will name the organization and add a forest to watch.
+        <p className="text-[#4a524a] mb-8" data-testid="register-intro">
+          {fromDemo
+            ? "Create a free trial organization to continue with your own monitored areas. This leaves demonstration data and starts a 14-day trial workspace for your account."
+            : "Create an account to monitor forests for your organization. After registration you will name the organization and add a forest to watch."}
         </p>
 
         <form onSubmit={onSubmit} className="space-y-5" data-testid="register-form">

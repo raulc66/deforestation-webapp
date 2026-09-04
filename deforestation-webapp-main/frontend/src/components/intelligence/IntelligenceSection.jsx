@@ -36,10 +36,20 @@ import IntelligenceCommandCenter from "./IntelligenceCommandCenter";
 
 export default function IntelligenceSection() {
   const navigate = useNavigate();
-  const { selectedOrgId, organizationVersion, currentOrganization } = useOrganization();
+  const {
+    selectedOrgId,
+    organizationVersion,
+    currentOrganization,
+    loading: orgLoading,
+  } = useOrganization();
   const demo = useDemo();
   const trial = useTrial();
-  const isDemo = demo.isDemo || isDemoOrganization(currentOrganization);
+  const sessionIsDemo = demo.isDemo;
+  const isDemo = sessionIsDemo || isDemoOrganization(currentOrganization);
+  const orgReady =
+    Boolean(selectedOrgId) &&
+    !orgLoading &&
+    (!isDemoOrganization(currentOrganization) || sessionIsDemo);
   const [summary, setSummary] = useState(null);
   const [events, setEvents] = useState(null);
   const [ingestionStatus, setIngestionStatus] = useState(null);
@@ -123,8 +133,13 @@ export default function IntelligenceSection() {
   }, [isDemo]);
 
   useEffect(() => {
-    if (selectedOrgId) load();
-  }, [load, selectedOrgId, organizationVersion, demo.status?.reset_count]);
+    if (!orgReady) {
+      setLoading(false);
+      setError(null);
+      return;
+    }
+    load();
+  }, [load, orgReady, organizationVersion, demo.status?.reset_count]);
 
   const handleCreateInvestigation = useCallback(
     async (evt) => {
@@ -239,16 +254,18 @@ export default function IntelligenceSection() {
           </div>
         </div>
 
-        <IntelligenceMap
-          evidenceByEventId={evidenceByEventId}
-          organizationName={monitoringStatus?.organization?.name}
-          demoMode={isDemo}
-          catalogEpoch={demo.status?.reset_count ?? 0}
-        />
+        {orgReady && (
+          <IntelligenceMap
+            evidenceByEventId={evidenceByEventId}
+            organizationName={monitoringStatus?.organization?.name}
+            demoMode={isDemo}
+            catalogEpoch={demo.status?.reset_count ?? 0}
+          />
+        )}
       </section>
-      {!isDemo && <RegionalRiskSection />}
-      {!isDemo && <RegionalWeatherSection />}
-      {!isDemo && <HistoricalIntelligenceSection />}
+      {!isDemo && orgReady && <RegionalRiskSection />}
+      {!isDemo && orgReady && <RegionalWeatherSection />}
+      {!isDemo && orgReady && <HistoricalIntelligenceSection />}
     </>
   );
 }

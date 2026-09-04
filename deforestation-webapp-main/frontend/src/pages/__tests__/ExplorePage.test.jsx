@@ -98,7 +98,13 @@ describe("ExplorePage", () => {
     expect(
       screen.getByText(/turns environmental observations into prioritized forest intelligence/i)
     ).toBeInTheDocument();
+    expect(screen.getByText(/bounded interactive preview/i)).toBeInTheDocument();
+    expect(screen.getByText(/Creating an account starts a 14-day trial/i)).toBeInTheDocument();
     expect(screen.getByTestId("start-interactive-demo")).toHaveTextContent(/Start interactive demo/i);
+    expect(screen.getByTestId("explore-signin")).toBeInTheDocument();
+    expect(screen.getByTestId("explore-register")).toHaveAttribute("href", "/register");
+    expect(screen.queryByTestId("explore-resume-demo")).not.toBeInTheDocument();
+    expect(screen.queryByText(/sign out before starting/i)).not.toBeInTheDocument();
     expect(screen.getByTestId("explore-create-organization")).toHaveTextContent(/Start a 14-day trial/i);
     expect(screen.getByTestId("explore-create-organization")).toHaveAttribute("href", "/register?from=demo");
   });
@@ -147,6 +153,23 @@ describe("ExplorePage", () => {
     fireEvent.click(screen.getByTestId("explore-restart-demo"));
     await waitFor(() => expect(mockStartDemo).toHaveBeenCalled());
   });
+
+  it("returns to a clean public demo entry after logout", () => {
+    mockAuth.user = false;
+    mockDemo.isDemo = false;
+    mockDemo.status = null;
+    render(
+      <MemoryRouter>
+        <ExplorePage />
+      </MemoryRouter>
+    );
+    expect(screen.getByTestId("start-interactive-demo")).toHaveTextContent(/Start interactive demo/i);
+    expect(screen.getByTestId("explore-signin")).toBeInTheDocument();
+    expect(screen.getByTestId("explore-register")).toBeInTheDocument();
+    expect(screen.queryByTestId("explore-resume-demo")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("explore-go-dashboard")).not.toBeInTheDocument();
+    expect(screen.queryByText(/sign out/i)).not.toBeInTheDocument();
+  });
 });
 
 describe("Demo guided flow", () => {
@@ -189,7 +212,10 @@ describe("Demo budget", () => {
         <DemoConversionCta moment="exhausted" />
       </MemoryRouter>
     );
-    expect(screen.getByTestId("demo-conversion-exhausted")).toHaveTextContent(/Create your trial organization/i);
+    expect(screen.getByTestId("demo-conversion-exhausted")).toHaveTextContent(/Create a free trial organization/i);
+    expect(screen.getByTestId("demo-conversion-cta")).toHaveTextContent(
+      /Create a free trial organization to continue with your own monitored areas/i
+    );
     expect(screen.getByTestId("demo-conversion-cta")).toHaveAttribute("href", "/register?from=demo");
   });
 });

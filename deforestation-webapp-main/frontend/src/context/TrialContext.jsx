@@ -9,7 +9,7 @@ import {
 import { fetchTrialStatus, startTrial as startTrialRequest } from "@/api/trial";
 import { useAuth } from "@/context/AuthContext";
 import { useOrganization } from "@/context/OrganizationContext";
-import { isDemoUser } from "@/lib/demo";
+import { isDemoOrganization, isDemoUser } from "@/lib/demo";
 
 const IDLE = {
   status: null,
@@ -24,15 +24,26 @@ const TrialContext = createContext(null);
 
 export function TrialProvider({ children }) {
   const { user } = useAuth();
-  const { selectedOrgId, organizationVersion, reload: reloadOrgs } =
-    useOrganization();
+  const {
+    selectedOrgId,
+    organizationVersion,
+    currentOrganization,
+    loading: orgLoading,
+    reload: reloadOrgs,
+  } = useOrganization();
   const isAuthenticated = user && typeof user === "object";
   const demo = isDemoUser(user);
   const [status, setStatus] = useState(null);
   const [loading, setLoading] = useState(false);
 
   const reload = useCallback(async () => {
-    if (!isAuthenticated || demo || !selectedOrgId) {
+    if (
+      !isAuthenticated ||
+      demo ||
+      !selectedOrgId ||
+      orgLoading ||
+      isDemoOrganization(currentOrganization)
+    ) {
       setStatus(null);
       return null;
     }
@@ -47,7 +58,7 @@ export function TrialProvider({ children }) {
     } finally {
       setLoading(false);
     }
-  }, [demo, isAuthenticated, selectedOrgId]);
+  }, [currentOrganization, demo, isAuthenticated, orgLoading, selectedOrgId]);
 
   useEffect(() => {
     reload();

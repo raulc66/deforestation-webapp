@@ -1,6 +1,10 @@
 import { createContext, useContext, useEffect, useState, useCallback } from "react";
 import { api, formatApiErrorDetail } from "@/lib/api";
 import { startDemoSession } from "@/api/demo";
+import {
+  clearClientWorkspaceState,
+  isSignOutRequiredDemoError,
+} from "@/lib/sessionState";
 
 const AuthContext = createContext(null);
 
@@ -14,6 +18,7 @@ export function AuthProvider({ children }) {
       setUser(data);
       return data;
     } catch {
+      clearClientWorkspaceState();
       setUser(false);
       return null;
     }
@@ -23,8 +28,19 @@ export function AuthProvider({ children }) {
     refreshUser();
   }, [refreshUser]);
 
+  const logout = async () => {
+    try {
+      await api.post("/auth/logout");
+    } catch {
+      // Cookie clear may still have been applied; drop client state either way.
+    }
+    clearClientWorkspaceState();
+    setUser(false);
+  };
+
   const login = async (email, password) => {
     try {
+      clearClientWorkspaceState();
       const { data } = await api.post("/auth/login", { email, password });
       setUser(data);
       return { ok: true, user: data };
@@ -35,6 +51,7 @@ export function AuthProvider({ children }) {
 
   const register = async ({ email, password, name }) => {
     try {
+      clearClientWorkspaceState();
       const { data } = await api.post("/auth/register", { email, password, name });
       setUser(data);
       return { ok: true, user: data };
@@ -44,27 +61,31 @@ export function AuthProvider({ children }) {
   };
 
   const startDemo = async () => {
+    const attempt = async () => startDemoSession();
     try {
-      const data = await startDemoSession();
+      clearClientWorkspaceState();
+      const data = await attempt();
       setUser(data);
       return { ok: true, user: data };
     } catch (e) {
+      if (isSignOutRequiredDemoError(e)) {
+        await logout();
+        try {
+          const data = await attempt();
+          setUser(data);
+          return { ok: true, user: data };
+        } catch (retryErr) {
+          return {
+            ok: false,
+            error: isSignOutRequiredDemoError(retryErr)
+              ? "The demonstration could not be started. Refresh the page and try again."
+              : formatApiErrorDetail(retryErr.response?.data?.detail) ||
+                retryErr.message,
+          };
+        }
+      }
       return { ok: false, error: formatApiErrorDetail(e.response?.data?.detail) || e.message };
     }
-  };
-
-  const logout = async () => {
-    try {
-      await api.post("/auth/logout");
-    } catch {
-      // ignore
-    }
-    try {
-      sessionStorage.removeItem("forestwatch.selectedOrganizationId");
-    } catch {
-      // ignore
-    }
-    setUser(false);
   };
 
   return (

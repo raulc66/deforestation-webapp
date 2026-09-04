@@ -96,7 +96,7 @@ function DemoDashboard({ demo }) {
 }
 
 function OperatorDashboard() {
-  const { status, isExpired } = useTrial();
+  const { status, isTrial, isExpired } = useTrial();
   const { currentOrganization } = useOrganization();
   const organizationName = currentOrganization?.name || "Your organization";
 
@@ -113,6 +113,14 @@ function OperatorDashboard() {
               Prioritized intelligence for forests this organization monitors.
               Review evidence before acting — satellite disturbance is not a legal finding.
             </p>
+            {isTrial && (
+              <p
+                className="text-xs text-[var(--text-muted)] mt-2 max-w-xl leading-relaxed"
+                data-testid="trial-workspace-kicker"
+              >
+                Trial workspace for your organization — not demonstration data.
+              </p>
+            )}
           </div>
           <TrialOnboarding status={status} />
           {isExpired && <TrialConversionCta moment="expired" />}

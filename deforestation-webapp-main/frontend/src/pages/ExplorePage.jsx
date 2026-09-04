@@ -73,13 +73,22 @@ export default function ExplorePage() {
                 Continue
               </Link>
             ) : (
-              <Link
-                to="/login"
-                className="text-[var(--text-secondary)] hover:underline"
-                data-testid="explore-signin"
-              >
-                Sign in
-              </Link>
+              <>
+                <Link
+                  to="/login"
+                  className="text-[var(--text-secondary)] hover:underline"
+                  data-testid="explore-signin"
+                >
+                  Sign in
+                </Link>
+                <Link
+                  to="/register"
+                  className="font-semibold text-[var(--accent)] hover:underline"
+                  data-testid="explore-register"
+                >
+                  Register
+                </Link>
+              </>
             )}
           </div>
         </div>
@@ -91,9 +100,14 @@ export default function ExplorePage() {
           See how ForestWatch turns environmental observations into prioritized forest intelligence.
         </h1>
         <p className="mt-4 max-w-xl text-[var(--text-secondary)] leading-relaxed">
-          ForestWatch continuously watches forests, identifies meaningful disturbances,
-          provides contextual evidence, prioritizes what requires attention, and can notify
-          the organization.
+          Explore a bounded interactive preview on demonstration forests. The catalog
+          is intentionally small so you can see how ForestWatch watches stands,
+          ranks disturbance, and separates observation from inference.
+        </p>
+        <p className="mt-3 max-w-xl text-sm text-[var(--text-secondary)] leading-relaxed">
+          Anonymous visitors can open the command center, run a limited number of
+          investigations, and simulate a notification. Creating an account starts a
+          14-day trial with your own organization and monitored areas.
         </p>
 
         <div className="mt-8 flex flex-col sm:flex-row gap-3">
@@ -166,7 +180,8 @@ export default function ExplorePage() {
               <MapPin className="w-3 h-3" /> Geography
             </div>
             <p className="text-sm text-[var(--text-secondary)] leading-relaxed">
-              Three Romanian forest stands are already under watch. The map stays central.
+              Three Romanian demonstration forests are already under watch so the map
+              has somewhere to start. This is preview data, not an empty product.
             </p>
           </SurfaceCard>
           <SurfaceCard className="p-5" testId="explore-priority">

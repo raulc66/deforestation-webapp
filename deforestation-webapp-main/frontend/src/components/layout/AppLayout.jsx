@@ -31,7 +31,7 @@ export default function AppLayout({ children }) {
 
   const handleLogout = async () => {
     await logout();
-    navigate(demo ? "/explore" : "/login");
+    navigate("/explore");
   };
 
   return (

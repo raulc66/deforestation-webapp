@@ -49,18 +49,21 @@ const mockDemoHook = {
   status: { focused_scenario: null, scenarios: [] },
 };
 
+const mockOrgState = {
+  selectedOrgId: "org-test-1",
+  currentOrganization: { id: "org-test-1", name: "Test Organization", role: "owner" },
+  organizations: [{ id: "org-test-1", name: "Test Organization", role: "owner" }],
+  setSelectedOrgId: jest.fn(),
+  loading: false,
+  organizationVersion: 0,
+};
+
 jest.mock("@/context/DemoContext", () => ({
   useDemo: () => mockDemoHook,
 }));
 
 jest.mock("@/context/OrganizationContext", () => ({
-  useOrganization: () => ({
-    selectedOrgId: "org-test-1",
-    currentOrganization: { id: "org-test-1", name: "Test Organization", role: "owner" },
-    organizations: [{ id: "org-test-1", name: "Test Organization", role: "owner" }],
-    setSelectedOrgId: jest.fn(),
-    loading: false,
-  }),
+  useOrganization: () => mockOrgState,
 }));
 
 jest.mock("@/context/TrialContext", () => ({
@@ -213,6 +216,13 @@ beforeEach(() => {
   jest.clearAllMocks();
   mockDemoHook.isDemo = false;
   mockDemoHook.investigate.mockClear();
+  mockOrgState.selectedOrgId = "org-test-1";
+  mockOrgState.loading = false;
+  mockOrgState.currentOrganization = {
+    id: "org-test-1",
+    name: "Test Organization",
+    role: "owner",
+  };
   // Default status mocks so they don't interfere with other tests
   fetchIngestionStatus.mockResolvedValue(MOCK_INGESTION_STATUS);
   fetchNotificationsStatus.mockResolvedValue(MOCK_NOTIFICATIONS_STATUS);
@@ -424,6 +434,36 @@ describe("IntelligenceSection", () => {
         expect(screen.getByTestId("intelligence-command-center")).toBeInTheDocument();
       });
       expect(mockDemoHook.investigate).not.toHaveBeenCalled();
+    });
+
+    it("does not load protected intelligence until organization context is ready", async () => {
+      mockOrgState.selectedOrgId = null;
+      mockOrgState.loading = true;
+      mockOrgState.currentOrganization = null;
+      render(<IntelligenceSection />);
+      await waitFor(() => {
+        expect(screen.getByTestId("intelligence-section")).toBeInTheDocument();
+      });
+      expect(fetchIntelligenceSummary).not.toHaveBeenCalled();
+      expect(fetchIntelligenceEvents).not.toHaveBeenCalled();
+      expect(fetchCommandCenter).not.toHaveBeenCalled();
+    });
+
+    it("does not send trial requests against leftover demonstration organization context", async () => {
+      mockDemoHook.isDemo = false;
+      mockOrgState.selectedOrgId = "demo-org";
+      mockOrgState.currentOrganization = {
+        id: "demo-org",
+        name: "ForestWatch Demonstration",
+        slug: "forestwatch-demo",
+        kind: "demo",
+      };
+      render(<IntelligenceSection />);
+      await waitFor(() => {
+        expect(screen.getByTestId("intelligence-section")).toBeInTheDocument();
+      });
+      expect(fetchIntelligenceSummary).not.toHaveBeenCalled();
+      expect(fetchCommandCenter).not.toHaveBeenCalled();
     });
   });
 });

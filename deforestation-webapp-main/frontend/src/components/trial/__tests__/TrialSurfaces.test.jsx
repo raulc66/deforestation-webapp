@@ -170,6 +170,7 @@ describe("TrialSetupPage", () => {
     expect(payload.geometry.type).toBe("Polygon");
     expect(payload.name).toBe("Harghita stand");
     expect(screen.getByTestId("trial-setup-briefing")).toHaveTextContent(/account email/i);
+    expect(screen.getByTestId("trial-workspace-notice")).toHaveTextContent(/left demonstration data/i);
   });
 
   it("shows expiration without fabricating a subscription", () => {

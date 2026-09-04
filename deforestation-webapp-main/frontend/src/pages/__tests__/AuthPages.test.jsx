@@ -5,7 +5,7 @@ import RegisterPage from "../RegisterPage";
 
 const mockLogin = jest.fn();
 const mockRegister = jest.fn();
-const { __mockNavigate, __resetRouterMocks } = require("react-router-dom");
+const { __mockNavigate, __resetRouterMocks, __setMockSearchParams } = require("react-router-dom");
 
 jest.mock("@/context/AuthContext", () => ({
   useAuth: () => ({
@@ -65,5 +65,18 @@ describe("RegisterPage", () => {
     fireEvent.click(screen.getByTestId("register-submit"));
     await waitFor(() => expect(mockRegister).toHaveBeenCalled());
     expect(__mockNavigate).toHaveBeenCalledWith("/trial/setup", { replace: true });
+  });
+
+  it("explains that demo conversion starts a real trial organization", () => {
+    __setMockSearchParams("from=demo");
+    render(
+      <MemoryRouter>
+        <RegisterPage />
+      </MemoryRouter>
+    );
+    expect(screen.getByTestId("register-intro")).toHaveTextContent(
+      /Create a free trial organization to continue with your own monitored areas/i
+    );
+    expect(screen.getByTestId("register-intro")).toHaveTextContent(/14-day trial/i);
   });
 });

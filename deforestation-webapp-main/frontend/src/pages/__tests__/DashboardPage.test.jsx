@@ -56,6 +56,7 @@ describe("Operator dashboard", () => {
       </MemoryRouter>
     );
     expect(screen.getByTestId("operator-org-name")).toHaveTextContent("Carpathian Watch");
+    expect(screen.getByTestId("trial-workspace-kicker")).toHaveTextContent(/not demonstration data/i);
     expect(screen.getByTestId("intelligence-section")).toBeInTheDocument();
     expect(screen.queryByText(/Welcome,/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/Watcher/i)).not.toBeInTheDocument();
