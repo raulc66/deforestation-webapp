@@ -4,6 +4,8 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any
 
+from pymongo.errors import DuplicateKeyError
+
 from app.core.demo.constants import DEMO_INTEL_COLLECTION
 from app.models.customer_alert import (
     AlertDeliveryRecord,
@@ -210,8 +212,10 @@ class FakeDeliveryRepo:
         return None
 
     async def create(self, record: AlertDeliveryRecord) -> dict:
-        did = self._store.nid("delivery")
         payload = record.model_dump()
+        if any(row["dedupe_key"] == payload["dedupe_key"] for row in self._store.deliveries.values()):
+            raise DuplicateKeyError("E11000 duplicate key error")
+        did = self._store.nid("delivery")
         payload["id"] = did
         self._store.deliveries[did] = payload
         return dict(payload)

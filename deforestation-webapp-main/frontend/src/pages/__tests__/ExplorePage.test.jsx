@@ -9,22 +9,26 @@ import DisturbanceInvestigationPanel from "@/components/intelligence/Disturbance
 import IntelligenceCommandCenter from "@/components/intelligence/IntelligenceCommandCenter";
 
 const mockStartDemo = jest.fn();
+const mockAuth = {
+  user: false,
+  startDemo: mockStartDemo,
+};
+const mockDemo = {
+  isDemo: false,
+  status: null,
+  lastSimulation: null,
+  recordEvent: jest.fn(),
+  simulateAlert: jest.fn(),
+  setGuideStep: jest.fn(),
+  refresh: jest.fn(),
+};
 
 jest.mock("@/context/AuthContext", () => ({
-  useAuth: () => ({
-    user: false,
-    startDemo: mockStartDemo,
-  }),
+  useAuth: () => mockAuth,
 }));
 
 jest.mock("@/context/DemoContext", () => ({
-  useDemo: () => ({
-    isDemo: false,
-    lastSimulation: null,
-    recordEvent: jest.fn(),
-    simulateAlert: jest.fn(),
-    setGuideStep: jest.fn(),
-  }),
+  useDemo: () => mockDemo,
 }));
 
 jest.mock("@/context/TrialContext", () => ({
@@ -78,6 +82,10 @@ const EVIDENCE_ITEM = {
 describe("ExplorePage", () => {
   beforeEach(() => {
     mockStartDemo.mockReset();
+    mockDemo.refresh.mockReset();
+    mockAuth.user = false;
+    mockDemo.isDemo = false;
+    mockDemo.status = null;
   });
 
   it("renders the demonstration entry and primary CTA", () => {
@@ -103,6 +111,40 @@ describe("ExplorePage", () => {
       </MemoryRouter>
     );
     fireEvent.click(screen.getByTestId("start-interactive-demo"));
+    await waitFor(() => expect(mockStartDemo).toHaveBeenCalled());
+  });
+
+  it("does not resume an exhausted demo session from Continue", () => {
+    mockAuth.user = { id: "demo:sess-1", provider: "demo", name: "Demonstration visitor" };
+    mockDemo.isDemo = true;
+    mockDemo.status = {
+      budget: {
+        remaining: { investigation: 0, alert_simulation: 0, report: 0, intelligence_query: 0 },
+        limits: { investigation: 5, alert_simulation: 2, report: 2, intelligence_query: 10 },
+        exhausted: true,
+      },
+    };
+    render(
+      <MemoryRouter>
+        <ExplorePage />
+      </MemoryRouter>
+    );
+    expect(screen.queryByTestId("explore-resume-demo")).not.toBeInTheDocument();
+    expect(screen.getByTestId("start-interactive-demo")).toHaveTextContent(/Start interactive demo/i);
+  });
+
+  it("lets a visitor with remaining budget continue or restart", async () => {
+    mockStartDemo.mockResolvedValue({ ok: true, user: { provider: "demo" } });
+    mockAuth.user = { id: "demo:sess-1", provider: "demo", name: "Demonstration visitor" };
+    mockDemo.isDemo = true;
+    mockDemo.status = STATUS;
+    render(
+      <MemoryRouter>
+        <ExplorePage />
+      </MemoryRouter>
+    );
+    expect(screen.getByTestId("explore-resume-demo")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("explore-restart-demo"));
     await waitFor(() => expect(mockStartDemo).toHaveBeenCalled());
   });
 });

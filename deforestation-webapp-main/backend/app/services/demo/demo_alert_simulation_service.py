@@ -8,14 +8,21 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any
 
+from pymongo.errors import DuplicateKeyError
+
 from app.core.demo.catalog import catalog_events
-from app.core.errors import ForbiddenError, NotFoundError
+from app.core.errors import ConflictError, ForbiddenError, NotFoundError
 from app.models.customer_alert import (
     AlertDeliveryRecord,
     AlertLifecycle,
     AlertStage,
     alert_dedupe_key,
 )
+
+
+def demo_simulation_dedupe_key(canonical: str, session_id: str) -> str:
+    """Per-session demo identity. Unique index still applies to the full string."""
+    return f"{canonical}:demo:{session_id}"
 
 
 class DemoAlertSimulationService:
@@ -55,18 +62,19 @@ class DemoAlertSimulationService:
         )
         event = await self._resolve_event(event_id)
         now = datetime.now(timezone.utc)
-        dedupe = alert_dedupe_key(
+        canonical = alert_dedupe_key(
             organization_id=organization_id,
             policy_id=str(policy.id),
             intelligence_event_id=str(event["id"]),
             alert_stage=AlertStage.INITIAL.value,
         )
-        existing = await self._deliveries.find_by_dedupe_key(dedupe)
+        demo_key = demo_simulation_dedupe_key(canonical, session_id)
+        existing = await self._deliveries.find_by_dedupe_key(demo_key)
         if existing is not None:
             return self._public(existing, simulated=True, already=True)
 
         record = AlertDeliveryRecord(
-            dedupe_key=f"{dedupe}:demo:{session_id}",
+            dedupe_key=demo_key,
             organization_id=organization_id,
             policy_id=str(policy.id),
             intelligence_event_id=str(event["id"]),
@@ -99,7 +107,13 @@ class DemoAlertSimulationService:
                 }
             ],
         )
-        stored = await self._deliveries.create(record)
+        try:
+            stored = await self._deliveries.create(record)
+        except DuplicateKeyError:
+            raced = await self._deliveries.find_by_dedupe_key(demo_key)
+            if raced is not None:
+                return self._public(raced, simulated=True, already=True)
+            raise ConflictError("Demonstration notification was already recorded")
         await self._sessions.record(session_id, "alert_simulation_used", {
             "event_id": str(event["id"]),
         })

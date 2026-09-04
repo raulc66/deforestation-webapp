@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Trees, ArrowRight, MapPin, ShieldQuestion } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import { useDemo } from "@/context/DemoContext";
 import { isDemoUser } from "@/lib/demo";
 import SurfaceCard from "@/components/product/SurfaceCard";
 import StatusBadge from "@/components/product/StatusBadge";
@@ -15,20 +16,32 @@ const STEPS = [
 
 export default function ExplorePage() {
   const { user, startDemo } = useAuth();
+  const demo = useDemo();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const signedIn = user && typeof user === "object";
   const demoSession = isDemoUser(user);
+  const remainingInvestigations = demo.status?.budget?.remaining?.investigation;
+  const sessionKnown = Boolean(demo.status?.budget);
+  const investigationExhausted =
+    Boolean(demo.status?.budget?.exhausted) || remainingInvestigations === 0;
+  const canResume = demoSession && sessionKnown && !investigationExhausted;
 
   const onStart = async () => {
     setError("");
     setLoading(true);
     const res = await startDemo();
-    setLoading(false);
     if (res.ok) {
+      try {
+        await demo.refresh?.();
+      } catch {
+        // Server session is already fresh; dashboard will reload status.
+      }
+      setLoading(false);
       navigate("/dashboard", { replace: true });
     } else {
+      setLoading(false);
       setError(res.error || "The demonstration could not be started.");
     }
   };
@@ -84,17 +97,37 @@ export default function ExplorePage() {
         </p>
 
         <div className="mt-8 flex flex-col sm:flex-row gap-3">
-          {demoSession ? (
+          {demoSession && !sessionKnown ? (
             <button
               type="button"
-              onClick={() => navigate("/dashboard")}
+              disabled
               className="fw-button-primary"
-              data-testid="explore-resume-demo"
+              data-testid="explore-demo-loading"
             >
-              Continue demonstration
-              <ArrowRight className="w-4 h-4 ml-2" strokeWidth={1.7} />
+              Preparing demonstration…
             </button>
-          ) : signedIn ? (
+          ) : canResume ? (
+            <>
+              <button
+                type="button"
+                onClick={() => navigate("/dashboard")}
+                className="fw-button-primary"
+                data-testid="explore-resume-demo"
+              >
+                Continue demonstration
+                <ArrowRight className="w-4 h-4 ml-2" strokeWidth={1.7} />
+              </button>
+              <button
+                type="button"
+                onClick={onStart}
+                disabled={loading}
+                className="inline-flex items-center justify-center px-4 py-2.5 rounded-md text-sm font-semibold border border-[var(--surface-inset)] bg-white text-[var(--text-primary)] hover:bg-[var(--surface-subtle)]"
+                data-testid="explore-restart-demo"
+              >
+                {loading ? "Preparing demonstration…" : "Restart demonstration"}
+              </button>
+            </>
+          ) : signedIn && !demoSession ? (
             <Link to="/dashboard" className="fw-button-primary" data-testid="explore-go-dashboard">
               Open your workspace
             </Link>

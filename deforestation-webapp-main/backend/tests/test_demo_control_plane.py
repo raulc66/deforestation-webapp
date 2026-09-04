@@ -26,9 +26,13 @@ from app.core.demo.identity import (
 )
 from app.core.errors import ForbiddenError
 from app.core.organization.organization_context import OrganizationContext
+from app.models.customer_alert import AlertStage, alert_dedupe_key
 from app.models.organization import Organization
 from app.models.user import UserPublic
-from app.services.demo.demo_alert_simulation_service import DemoAlertSimulationService
+from app.services.demo.demo_alert_simulation_service import (
+    DemoAlertSimulationService,
+    demo_simulation_dedupe_key,
+)
 from app.services.demo.demo_rate_limit import check_demo_rate, reset_demo_rate_limiter
 from app.services.organization_context_service import OrganizationContextService
 from fixtures.demo_fakes import (
@@ -146,6 +150,64 @@ class TestDemoSessionBudget:
         assert "demo_started" in names
         assert "demo_reset" in names
 
+    @run_async
+    async def test_first_investigation_succeeds_on_new_session(self):
+        _, _, sessions = build_catalog_and_sessions()
+        user, _, status = await sessions.start()
+        session_id = str(user.id).removeprefix("demo:")
+        assert status.budget.remaining["investigation"] == DEFAULT_DEMO_BUDGET["investigation"]
+        assert status.budget.exhausted is False
+        await sessions.consume(session_id, "investigation")
+        refreshed = await sessions.status_for(session_id)
+        assert refreshed.budget.remaining["investigation"] == DEFAULT_DEMO_BUDGET["investigation"] - 1
+
+    @run_async
+    async def test_investigation_exhausts_only_after_allowed_uses(self):
+        _, _, sessions = build_catalog_and_sessions()
+        user, _, _ = await sessions.start()
+        session_id = str(user.id).removeprefix("demo:")
+        limit = DEFAULT_DEMO_BUDGET["investigation"]
+        for used in range(limit):
+            await sessions.consume(session_id, "investigation")
+            remaining = (await sessions.status_for(session_id)).budget.remaining["investigation"]
+            assert remaining == limit - used - 1
+        with pytest.raises(DemoBudgetError) as exc:
+            await sessions.consume(session_id, "investigation")
+        assert exc.value.code == "demo_budget_exhausted"
+        assert exc.value.status_code == 403
+
+    @run_async
+    async def test_repeated_start_resets_existing_session_instead_of_reusing_spent_budget(self):
+        _, _, sessions = build_catalog_and_sessions()
+        user, _, _ = await sessions.start()
+        session_id = str(user.id).removeprefix("demo:")
+        for _ in range(DEFAULT_DEMO_BUDGET["investigation"]):
+            await sessions.consume(session_id, "investigation")
+        again_user, _, status = await sessions.start(existing_session_id=session_id)
+        assert str(again_user.id).removeprefix("demo:") == session_id
+        assert status.budget.remaining["investigation"] == DEFAULT_DEMO_BUDGET["investigation"]
+        await sessions.consume(session_id, "investigation")
+        refreshed = await sessions.status_for(session_id)
+        assert refreshed.budget.remaining["investigation"] == DEFAULT_DEMO_BUDGET["investigation"] - 1
+
+    @run_async
+    async def test_start_without_existing_id_creates_a_new_session(self):
+        _, _, sessions = build_catalog_and_sessions()
+        first, _, _ = await sessions.start()
+        second, _, _ = await sessions.start()
+        assert str(first.id) != str(second.id)
+
+    @run_async
+    async def test_status_and_catalog_seed_do_not_consume_investigation(self):
+        _, catalog, sessions = build_catalog_and_sessions()
+        user, _, _ = await sessions.start()
+        session_id = str(user.id).removeprefix("demo:")
+        await catalog.ensure_seeded()
+        await sessions.status_for(session_id)
+        await sessions.set_guide_step(session_id, "investigate")
+        remaining = (await sessions.status_for(session_id)).budget.remaining["investigation"]
+        assert remaining == DEFAULT_DEMO_BUDGET["investigation"]
+
 
 class _NoBootstrap:
     async def ensure_personal_organization(self, user_id: str):
@@ -219,20 +281,24 @@ class TestDemoIsolation:
         assert [item["slug"] for item in listed] == [DEMO_ORGANIZATION_SLUG]
 
 
+def _alert_service(store, catalog, sessions, delivery_repo=None):
+    return DemoAlertSimulationService(
+        sessions=sessions,
+        catalog=catalog,
+        policy_repo=FakePolicyRepo(store),
+        channel_repo=FakeChannelRepo(store),
+        delivery_repo=delivery_repo or FakeDeliveryRepo(store),
+        intel_repo=FakeIntelRepo(store),
+    )
+
+
 class TestDemoAlertSimulation:
     @run_async
     async def test_simulate_writes_labelled_delivery_without_senders(self):
         store, catalog, sessions = build_catalog_and_sessions()
         user, _, _ = await sessions.start()
         session_id = str(user.id).removeprefix("demo:")
-        alerts = DemoAlertSimulationService(
-            sessions=sessions,
-            catalog=catalog,
-            policy_repo=FakePolicyRepo(store),
-            channel_repo=FakeChannelRepo(store),
-            delivery_repo=FakeDeliveryRepo(store),
-            intel_repo=FakeIntelRepo(store),
-        )
+        alerts = _alert_service(store, catalog, sessions)
         result = await alerts.simulate(session_id)
         assert result["simulated"] is True
         assert result["already_recorded"] is False
@@ -240,8 +306,78 @@ class TestDemoAlertSimulation:
         assert stored["delivery_results"][0]["simulated"] is True
         assert stored["lifecycle"] == "sent"
         assert "no message was sent" in stored["reason"].lower()
+        canonical = alert_dedupe_key(
+            organization_id=stored["organization_id"],
+            policy_id=stored["policy_id"],
+            intelligence_event_id=stored["intelligence_event_id"],
+            alert_stage=AlertStage.INITIAL.value,
+        )
+        assert stored["dedupe_key"] == demo_simulation_dedupe_key(canonical, session_id)
         names = [row["event_name"] for row in store.product_events]
         assert "alert_simulation_used" in names
+
+    @run_async
+    async def test_repeated_simulation_returns_existing_delivery(self):
+        store, catalog, sessions = build_catalog_and_sessions()
+        user, _, _ = await sessions.start()
+        session_id = str(user.id).removeprefix("demo:")
+        alerts = _alert_service(store, catalog, sessions)
+        first = await alerts.simulate(session_id)
+        second = await alerts.simulate(session_id)
+        assert first["already_recorded"] is False
+        assert second["already_recorded"] is True
+        assert second["id"] == first["id"]
+        assert second["simulated"] is True
+        assert len(store.deliveries) == 1
+        used = [row for row in store.product_events if row["event_name"] == "alert_simulation_used"]
+        assert len(used) == 1
+
+    @run_async
+    async def test_concurrent_insert_race_returns_existing_not_duplicate_error(self):
+        store, catalog, sessions = build_catalog_and_sessions()
+        user, _, _ = await sessions.start()
+        session_id = str(user.id).removeprefix("demo:")
+        inner = FakeDeliveryRepo(store)
+
+        class RaceOnLookup(FakeDeliveryRepo):
+            def __init__(self):
+                super().__init__(store)
+                self._miss_once = True
+
+            async def find_by_dedupe_key(self, dedupe_key: str):
+                if self._miss_once:
+                    self._miss_once = False
+                    return None
+                return await inner.find_by_dedupe_key(dedupe_key)
+
+        alerts = _alert_service(store, catalog, sessions)
+        first = await alerts.simulate(session_id)
+        raced = _alert_service(store, catalog, sessions, delivery_repo=RaceOnLookup())
+        second = await raced.simulate(session_id)
+        assert first["already_recorded"] is False
+        assert second["already_recorded"] is True
+        assert second["id"] == first["id"]
+        assert len(store.deliveries) == 1
+
+    @run_async
+    async def test_repeated_simulation_still_consumes_session_budget(self):
+        store, catalog, sessions = build_catalog_and_sessions()
+        user, _, _ = await sessions.start()
+        session_id = str(user.id).removeprefix("demo:")
+        alerts = _alert_service(store, catalog, sessions)
+        await sessions.consume(session_id, "alert_simulation")
+        first = await alerts.simulate(session_id)
+        await sessions.consume(session_id, "alert_simulation")
+        second = await alerts.simulate(session_id)
+        assert first["already_recorded"] is False
+        assert second["already_recorded"] is True
+        status = await sessions.status_for(session_id)
+        assert status.budget.remaining["alert_simulation"] == 0
+        with pytest.raises(DemoBudgetError) as exc:
+            await sessions.consume(session_id, "alert_simulation")
+        assert exc.value.code == "demo_budget_exhausted"
+        assert exc.value.status_code == 403
+        assert len(store.deliveries) == 1
 
     @run_async
     async def test_cannot_simulate_against_non_demo_event(self):
@@ -254,14 +390,7 @@ class TestDemoAlertSimulation:
             "region": "Elsewhere",
             "metadata": {},
         }
-        alerts = DemoAlertSimulationService(
-            sessions=sessions,
-            catalog=catalog,
-            policy_repo=FakePolicyRepo(store),
-            channel_repo=FakeChannelRepo(store),
-            delivery_repo=FakeDeliveryRepo(store),
-            intel_repo=FakeIntelRepo(store),
-        )
+        alerts = _alert_service(store, catalog, sessions)
         with pytest.raises(ForbiddenError):
             await alerts.simulate(session_id, event_id="real-1")
 

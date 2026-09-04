@@ -39,9 +39,27 @@ class DemoSessionService:
         self._sessions = sessions
         self._catalog = catalog
 
-    async def start(self) -> tuple[UserPublic, str, DemoStatusPublic]:
-        org = await self._catalog.ensure_seeded()
+    async def start(
+        self, existing_session_id: str | None = None
+    ) -> tuple[UserPublic, str, DemoStatusPublic]:
+        """Begin a fresh demonstration: new session, or reset a live cookie session.
+
+        ``POST /demo/start`` is a start, not a resume. Reusing an exhausted
+        session id without resetting would make the first user action fail.
+        """
         now = datetime.now(timezone.utc)
+        if existing_session_id:
+            existing = await self._sessions.find_by_id(existing_session_id)
+            if existing is not None and not self._expired(existing, now=now):
+                status = await self.reset(existing_session_id)
+                await self.record(existing_session_id, "demo_started")
+                token = create_demo_token(existing_session_id)
+                user = demo_public_user(
+                    existing_session_id, created_at=existing.created_at
+                )
+                return user, token, status
+
+        org = await self._catalog.ensure_seeded()
         session = await self._sessions.insert(
             DemoSession(
                 created_at=now,
@@ -56,14 +74,18 @@ class DemoSessionService:
         user = demo_public_user(str(session.id), created_at=session.created_at)
         return user, token, self._status(session, org)
 
+    @staticmethod
+    def _expired(session: DemoSession, *, now: datetime | None = None) -> bool:
+        expires = session.expires_at
+        if expires.tzinfo is None:
+            expires = expires.replace(tzinfo=timezone.utc)
+        return expires <= (now or datetime.now(timezone.utc))
+
     async def require(self, session_id: str) -> DemoSession:
         session = await self._sessions.find_by_id(session_id)
         if session is None:
             raise AuthError("Demonstration session is not valid")
-        expires = session.expires_at
-        if expires.tzinfo is None:
-            expires = expires.replace(tzinfo=timezone.utc)
-        if expires <= datetime.now(timezone.utc):
+        if self._expired(session):
             raise AuthError("Demonstration session has expired")
         await self._sessions.update(
             str(session.id),
@@ -93,6 +115,7 @@ class DemoSessionService:
                 "focused_scenario": None,
                 "reset_count": int(session.reset_count) + 1,
                 "last_seen_at": now,
+                "expires_at": now + timedelta(hours=DEMO_SESSION_HOURS),
             },
         )
         await self.record(str(session.id), "demo_reset")

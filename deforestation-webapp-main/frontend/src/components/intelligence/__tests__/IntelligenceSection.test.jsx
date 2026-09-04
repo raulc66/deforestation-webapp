@@ -41,6 +41,18 @@ jest.mock("@/components/investigations/InvestigationsCommandCenterCard", () => (
   <div data-testid="investigations-command-center-stub" />
 ));
 
+const mockDemoHook = {
+  isDemo: false,
+  investigate: jest.fn(),
+  setGuideStep: jest.fn(),
+  recordEvent: jest.fn(),
+  status: { focused_scenario: null, scenarios: [] },
+};
+
+jest.mock("@/context/DemoContext", () => ({
+  useDemo: () => mockDemoHook,
+}));
+
 jest.mock("@/context/OrganizationContext", () => ({
   useOrganization: () => ({
     selectedOrgId: "org-test-1",
@@ -199,6 +211,8 @@ const MOCK_OPERATIONAL_STATUS = {
 
 beforeEach(() => {
   jest.clearAllMocks();
+  mockDemoHook.isDemo = false;
+  mockDemoHook.investigate.mockClear();
   // Default status mocks so they don't interfere with other tests
   fetchIngestionStatus.mockResolvedValue(MOCK_INGESTION_STATUS);
   fetchNotificationsStatus.mockResolvedValue(MOCK_NOTIFICATIONS_STATUS);
@@ -383,6 +397,33 @@ describe("IntelligenceSection", () => {
           screen.getByTestId("intelligence-events-empty")
         ).toBeInTheDocument();
       });
+    });
+  });
+
+  describe("demo dashboard load", () => {
+    it("does not consume investigation budget while hydrating the command center", async () => {
+      mockDemoHook.isDemo = true;
+      fetchIntelligenceSummary.mockResolvedValue(MOCK_SUMMARY);
+      fetchIntelligenceEvents.mockResolvedValue(MOCK_EVENTS);
+      fetchCommandCenter.mockResolvedValue({
+        intelligence_evidence: {
+          items: [
+            {
+              event_id: "evt-001",
+              region: "Carpathian Forest",
+              incident_category: "forest_disturbance",
+              disturbance_assessment: { investigation_priority: "high" },
+            },
+          ],
+        },
+      });
+
+      render(<IntelligenceSection />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId("intelligence-command-center")).toBeInTheDocument();
+      });
+      expect(mockDemoHook.investigate).not.toHaveBeenCalled();
     });
   });
 });

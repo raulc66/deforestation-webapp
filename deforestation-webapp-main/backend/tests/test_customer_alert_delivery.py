@@ -184,7 +184,15 @@ class TestDuplicateSchedulerCycles:
         assert first["initial_created"] == 1
         assert second["candidates_created"] == 0
         assert third["candidates_created"] == 0
-        assert len(env.deliveries_for("org-a")) == 1
+        rows = env.deliveries_for("org-a")
+        assert len(rows) == 1
+        assert rows[0]["dedupe_key"] == alert_dedupe_key(
+            organization_id="org-a",
+            policy_id=rows[0]["policy_id"],
+            intelligence_event_id="evt-1",
+            alert_stage=AlertStage.INITIAL.value,
+        )
+        assert ":demo:" not in rows[0]["dedupe_key"]
 
     @run_async
     async def test_ten_repeated_cycles_are_deterministic(self, env):

@@ -61,7 +61,10 @@ async def start_demo(
         raise ForbiddenError(
             "Sign out before starting the interactive demonstration"
         )
-    user_public, token, status = await svc.start()
+    existing_id = None
+    if user is not None and is_demo_user(user):
+        existing_id = str(user.id).removeprefix("demo:")
+    user_public, token, status = await svc.start(existing_session_id=existing_id)
     _set_demo_cookie(response, token)
     return {
         **user_public.model_dump(),
