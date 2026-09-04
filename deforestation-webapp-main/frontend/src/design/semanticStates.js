@@ -61,6 +61,25 @@ export function deliveryStateVariant(lifecycle) {
   return DELIVERY_STATE_VARIANTS[String(lifecycle || "")] ?? "unknown";
 }
 
+export function isSimulatedDelivery(delivery) {
+  if (!delivery) return false;
+  if (delivery.simulated) return true;
+  if (delivery.channel_outcomes?.some((row) => row.simulated)) return true;
+  return Boolean(delivery.delivery_results?.some((row) => row.simulated));
+}
+
+export function channelOutcomeSummary(outcome) {
+  const name = outcome?.channel_name || outcome?.channel_type_label || "Notification channel";
+  if (outcome?.simulated) return `${name} — Simulated`;
+  if (outcome?.delivered) return name;
+  return `${name} (failed)`;
+}
+
+export function deliveryPresentationLabel(delivery) {
+  if (isSimulatedDelivery(delivery)) return "Simulated";
+  return delivery?.delivery_state_label ?? deliveryStateLabel(delivery?.lifecycle);
+}
+
 export function alertStageLabel(stage) {
   return ALERT_STAGE_LABELS[String(stage || "")] ?? "Alert";
 }

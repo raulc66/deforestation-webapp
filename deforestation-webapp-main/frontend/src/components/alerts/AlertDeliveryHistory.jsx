@@ -4,9 +4,11 @@ import StatusBadge from "@/components/product/StatusBadge";
 import PriorityBadge from "@/components/product/PriorityBadge";
 import {
   alertStageLabel,
-  deliveryStateLabel,
+  deliveryPresentationLabel,
   deliveryStateVariant,
+  channelOutcomeSummary,
   formatTimestamp,
+  isSimulatedDelivery,
 } from "@/design/semanticStates";
 
 const FILTERS = [
@@ -98,12 +100,12 @@ export default function AlertDeliveryHistory({
                     testId={`alert-delivery-${delivery.id}-priority`}
                   />
                   <StatusBadge
-                    variant={deliveryStateVariant(delivery.lifecycle)}
-                    label={
-                      delivery.simulated || delivery.delivery_results?.some((row) => row.simulated)
-                        ? "Simulated"
-                        : delivery.delivery_state_label ?? deliveryStateLabel(delivery.lifecycle)
+                    variant={
+                      isSimulatedDelivery(delivery)
+                        ? "unknown"
+                        : deliveryStateVariant(delivery.lifecycle)
                     }
+                    label={deliveryPresentationLabel(delivery)}
                     testId={`alert-delivery-${delivery.id}-state`}
                   />
                 </div>
@@ -127,20 +129,25 @@ export default function AlertDeliveryHistory({
                 </div>
                 <div>
                   <dt className="fw-kicker">Channels</dt>
-                  <dd className="text-sm text-[var(--text-primary)] mt-0.5">
+                  <dd
+                    className="text-sm text-[var(--text-primary)] mt-0.5"
+                    data-testid={`alert-delivery-${delivery.id}-channels`}
+                  >
                     {delivery.channel_outcomes?.length
-                      ? delivery.channel_outcomes
-                          .map(
-                            (outcome) =>
-                              `${outcome.channel_name ?? outcome.channel_type_label}${
-                                outcome.delivered ? "" : " (failed)"
-                              }`
-                          )
-                          .join(", ")
+                      ? delivery.channel_outcomes.map(channelOutcomeSummary).join(", ")
                       : "—"}
                   </dd>
                 </div>
               </dl>
+
+              {isSimulatedDelivery(delivery) && (
+                <p
+                  className="text-xs text-[var(--text-muted)] mt-3"
+                  data-testid={`alert-delivery-${delivery.id}-simulated-note`}
+                >
+                  No external message was sent.
+                </p>
+              )}
 
               {delivery.suppression_reason_label && (
                 <p

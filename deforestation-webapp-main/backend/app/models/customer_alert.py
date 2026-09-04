@@ -169,6 +169,7 @@ class AlertDeliveryChannelOutcome(BaseModel):
     channel_name: str | None = None
     delivered: bool
     failure_reason: str | None = None
+    simulated: bool = False
 
 
 class AlertDeliveryPublic(BaseModel):
@@ -198,6 +199,7 @@ class AlertDeliveryPublic(BaseModel):
     suppression_reason: str | None = None
     suppression_reason_label: str | None = None
     last_error: str | None = None
+    simulated: bool = False
 
 
 class AlertOperationsOverview(BaseModel):

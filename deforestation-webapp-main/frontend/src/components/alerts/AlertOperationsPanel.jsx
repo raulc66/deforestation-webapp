@@ -4,9 +4,10 @@ import SurfaceCard from "@/components/product/SurfaceCard";
 import StatusBadge from "@/components/product/StatusBadge";
 import {
   alertStageLabel,
-  deliveryStateLabel,
+  deliveryPresentationLabel,
   deliveryStateVariant,
   formatTimestamp,
+  isSimulatedDelivery,
 } from "@/design/semanticStates";
 
 const MAX_RECENT = 3;
@@ -101,11 +102,15 @@ export default function AlertOperationsPanel({ overview, loading = false, simula
                   {formatTimestamp(delivery.sent_at ?? delivery.created_at)}
                 </span>
                 <StatusBadge
-                  variant={deliveryStateVariant(delivery.lifecycle)}
+                  variant={
+                    simulated || isSimulatedDelivery(delivery)
+                      ? "unknown"
+                      : deliveryStateVariant(delivery.lifecycle)
+                  }
                   label={
-                    simulated || delivery.simulated || delivery.delivery_results?.some((row) => row.simulated)
+                    simulated || isSimulatedDelivery(delivery)
                       ? "Simulated"
-                      : delivery.delivery_state_label ?? deliveryStateLabel(delivery.lifecycle)
+                      : deliveryPresentationLabel(delivery)
                   }
                 />
               </span>
@@ -129,7 +134,7 @@ export default function AlertOperationsPanel({ overview, loading = false, simula
       </Link>
       {simulated && (
         <p className="text-xs text-[var(--text-muted)] mt-2" data-testid="alert-operations-simulated-note">
-          Demonstration deliveries are simulated. No email is sent.
+          Demonstration deliveries are simulated. No external message was sent.
         </p>
       )}
     </SurfaceCard>

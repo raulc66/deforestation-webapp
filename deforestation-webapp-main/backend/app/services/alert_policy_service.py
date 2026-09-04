@@ -432,6 +432,10 @@ class AlertPolicyService:
             if str(row.get("organization_id") or "") != organization_id:
                 continue
             category = self._delivery_category(row)
+            outcomes = [
+                self._channel_outcome_from_result(result)
+                for result in (row.get("delivery_results") or [])
+            ]
             items.append(
                 AlertDeliveryPublic(
                     id=str(row.get("id")),
@@ -462,25 +466,44 @@ class AlertPolicyService:
                     sent_at=row.get("sent_at"),
                     dispatch_attempt_count=int(row.get("dispatch_attempt_count") or 0),
                     last_attempt_at=row.get("last_attempt_at"),
-                    channel_outcomes=[
-                        AlertDeliveryChannelOutcome(
-                            channel_id=str(result.get("channel_id") or ""),
-                            channel_type=str(result.get("channel_type") or ""),
-                            channel_type_label=channel_type_label(result.get("channel_type")),
-                            channel_name=result.get("channel_name"),
-                            delivered=bool(result.get("success")),
-                            failure_reason=result.get("error"),
-                        )
-                        for result in (row.get("delivery_results") or [])
-                    ],
+                    channel_outcomes=outcomes,
                     suppression_reason=row.get("suppression_reason"),
                     suppression_reason_label=suppression_reason_label(
                         row.get("suppression_reason")
                     ),
                     last_error=row.get("last_error"),
+                    simulated=self._delivery_is_simulated(row, outcomes),
                 )
             )
         return items
+
+    @staticmethod
+    def _channel_result_is_simulated(result: dict[str, Any]) -> bool:
+        return bool(result.get("simulated")) or str(result.get("status") or "") == "simulated"
+
+    @classmethod
+    def _channel_outcome_from_result(cls, result: dict[str, Any]) -> AlertDeliveryChannelOutcome:
+        simulated = cls._channel_result_is_simulated(result)
+        return AlertDeliveryChannelOutcome(
+            channel_id=str(result.get("channel_id") or ""),
+            channel_type=str(result.get("channel_type") or ""),
+            channel_type_label=channel_type_label(result.get("channel_type")),
+            channel_name=result.get("channel_name"),
+            delivered=bool(result.get("success")),
+            failure_reason=None if simulated else result.get("error"),
+            simulated=simulated,
+        )
+
+    @classmethod
+    def _delivery_is_simulated(
+        cls,
+        row: dict[str, Any],
+        outcomes: list[AlertDeliveryChannelOutcome],
+    ) -> bool:
+        evidence = row.get("evidence_summary") or {}
+        if evidence.get("simulated") is True:
+            return True
+        return any(outcome.simulated for outcome in outcomes)
 
     @staticmethod
     def _delivery_category(row: dict[str, Any]) -> str | None:

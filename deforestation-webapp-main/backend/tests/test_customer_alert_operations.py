@@ -122,8 +122,52 @@ class TestDeliveryHistoryReadModel:
         assert len(item.channel_outcomes) == 1
         outcome = item.channel_outcomes[0]
         assert outcome.delivered is True
+        assert outcome.simulated is False
         assert outcome.channel_type_label == "Email channel"
         assert outcome.channel_name == "Operations inbox"
+
+    @run_async
+    async def test_simulated_demo_delivery_is_not_mapped_as_channel_failure(self, env):
+        channel_id = await env.add_email_channel("org-a")
+        policy_id = await env.add_policy(
+            "org-a",
+            area_ids=[env.area_ids["org-a"]],
+            channel_ids=[channel_id],
+        )
+        await env.delivery_repo.create(
+            AlertDeliveryRecord(
+                dedupe_key="org-a:demo:evt-demo:initial",
+                organization_id="org-a",
+                policy_id=policy_id,
+                intelligence_event_id="evt-demo",
+                alert_stage=AlertStage.INITIAL.value,
+                reason="Demonstration notification simulated.",
+                evidence_summary={
+                    "simulated": True,
+                    "incident_category": "forest_disturbance",
+                },
+                lifecycle=AlertLifecycle.SENT.value,
+                created_at=NOW,
+                updated_at=NOW,
+                sent_at=NOW,
+                delivery_results=[
+                    {
+                        "channel_type": "email",
+                        "channel_name": "Demonstration inbox",
+                        "status": "simulated",
+                        "simulated": True,
+                    }
+                ],
+            )
+        )
+        item = (await env.policy_svc.list_deliveries("org-a"))["items"][0]
+        assert item.lifecycle == AlertLifecycle.SENT.value
+        assert item.delivery_state_label == "Delivered"
+        assert item.simulated is True
+        assert item.channel_outcomes[0].simulated is True
+        assert item.channel_outcomes[0].delivered is False
+        assert item.channel_outcomes[0].failure_reason is None
+        assert item.channel_outcomes[0].channel_name == "Demonstration inbox"
 
     @run_async
     async def test_history_reports_sent_timestamp_and_attempt_count(self, env):
@@ -141,6 +185,8 @@ class TestDeliveryHistoryReadModel:
         assert item.lifecycle == AlertLifecycle.FAILED.value
         assert item.sent_at is None
         assert item.delivery_state_label == "Delivery failed"
+        assert item.simulated is False
+        assert item.channel_outcomes[0].simulated is False
         assert item.channel_outcomes[0].failure_reason == "smtp_unavailable"
 
     @run_async

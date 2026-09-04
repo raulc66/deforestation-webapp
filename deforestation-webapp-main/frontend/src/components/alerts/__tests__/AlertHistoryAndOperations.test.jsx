@@ -58,6 +58,23 @@ const SUPPRESSED = {
   suppression_reason_label: "No enabled notification channel configured",
 };
 
+const SIMULATED = {
+  ...DELIVERED,
+  id: "del-sim",
+  simulated: true,
+  channel_outcomes: [
+    {
+      channel_id: "chan-demo",
+      channel_type: "email",
+      channel_type_label: "Email channel",
+      channel_name: "Demonstration inbox",
+      delivered: false,
+      simulated: true,
+      failure_reason: null,
+    },
+  ],
+};
+
 describe("AlertDeliveryHistory", () => {
   it("shows a delivered alert with its stage, area and priority", () => {
     render(<AlertDeliveryHistory deliveries={[DELIVERED]} />);
@@ -82,6 +99,27 @@ describe("AlertDeliveryHistory", () => {
   it("marks a failing channel in the outcome summary", () => {
     render(<AlertDeliveryHistory deliveries={[FAILED]} />);
     expect(screen.getByText("Operations inbox (failed)")).toBeInTheDocument();
+  });
+
+  it("renders a demo simulation without calling the channel failed", () => {
+    render(<AlertDeliveryHistory deliveries={[SIMULATED]} />);
+    expect(screen.getByTestId("alert-delivery-del-sim-state")).toHaveTextContent("Simulated");
+    expect(screen.getByTestId("alert-delivery-del-sim-state")).not.toHaveTextContent("Delivered");
+    expect(screen.getByTestId("alert-delivery-del-sim-channels")).toHaveTextContent(
+      "Demonstration inbox — Simulated"
+    );
+    expect(screen.queryByText(/Demonstration inbox \(failed\)/)).not.toBeInTheDocument();
+    expect(screen.getByTestId("alert-delivery-del-sim-simulated-note")).toHaveTextContent(
+      "No external message was sent."
+    );
+  });
+
+  it("keeps production delivered and failed presentations distinct from simulated", () => {
+    render(<AlertDeliveryHistory deliveries={[DELIVERED, FAILED, SIMULATED]} />);
+    expect(screen.getByTestId("alert-delivery-del-1-state")).toHaveTextContent("Delivered");
+    expect(screen.getByTestId("alert-delivery-del-2-state")).toHaveTextContent("Delivery failed");
+    expect(screen.getByText("Operations inbox (failed)")).toBeInTheDocument();
+    expect(screen.getByTestId("alert-delivery-del-sim-state")).toHaveTextContent("Simulated");
   });
 
   it("explains a suppression in customer language", () => {
