@@ -250,7 +250,7 @@ export default function AlertsPage() {
                 aria-pressed={activeTab === tab.id}
                 data-testid={`alerts-tab-${tab.id}`}
                 onClick={() => setActiveTab(tab.id)}
-                className={`rounded-md border px-3 py-1.5 text-xs transition-colors ${
+                className={`min-h-9 rounded-md border px-3 py-1.5 text-xs ${
                   activeTab === tab.id
                     ? "border-[var(--accent)] bg-[var(--surface-subtle)] font-semibold"
                     : "border-[var(--surface-inset)] text-[var(--text-muted)]"

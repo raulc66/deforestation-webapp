@@ -115,9 +115,9 @@ export default function AppLayout({ children }) {
         </div>
       </aside>
 
-      <div className="md:hidden fixed top-0 left-0 right-0 z-40 bg-white border-b border-[#eaece6] px-4 py-3 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-md bg-[#2d5a27] flex items-center justify-center">
+      <div className="md:hidden fixed top-0 left-0 right-0 z-40 bg-white border-b border-[#eaece6] px-4 py-3 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2 min-w-0">
+          <div className="w-7 h-7 rounded-md bg-[#2d5a27] flex items-center justify-center shrink-0">
             <Trees className="w-4 h-4 text-white" strokeWidth={1.7} />
           </div>
           <span className="font-bold text-sm">ForestWatch</span>
@@ -127,20 +127,23 @@ export default function AppLayout({ children }) {
             </span>
           )}
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-1 shrink-0">
           <button
             type="button"
             data-testid="mobile-nav-toggle"
             onClick={() => setMobileOpen((open) => !open)}
-            className="text-[#4a524a]"
-            aria-label="Open navigation"
+            className="text-[#4a524a] min-h-10 min-w-10 inline-flex items-center justify-center"
+            aria-label={mobileOpen ? "Close navigation" : "Open navigation"}
+            aria-expanded={mobileOpen}
           >
             {mobileOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
           </button>
           <button
+            type="button"
             data-testid="mobile-logout-btn"
             onClick={handleLogout}
-            className="text-sm text-[#4a524a]"
+            className="text-sm text-[#4a524a] min-h-10 min-w-10 inline-flex items-center justify-center"
+            aria-label={demo ? "Leave demo" : "Sign out"}
           >
             <LogOut className="w-4 h-4" />
           </button>
@@ -149,7 +152,7 @@ export default function AppLayout({ children }) {
 
       {mobileOpen && (
         <div
-          className="md:hidden fixed inset-0 top-12 z-30 bg-white/95 p-4"
+          className="md:hidden fixed inset-0 top-12 z-30 bg-white p-4"
           data-testid="mobile-nav"
         >
           <nav className="space-y-1">

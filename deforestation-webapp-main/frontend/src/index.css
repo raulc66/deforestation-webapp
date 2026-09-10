@@ -1,11 +1,10 @@
 /* ForestWatch global styles - Organic & Earthy theme */
-@import url("https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=IBM+Plex+Sans:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap");
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
+    color-scheme: light;
     /* Brand palette */
     --bg-default: #f4f5f2;
     --bg-paper: #ffffff;
@@ -21,7 +20,7 @@
     --brand-accent: #c84b31;
     --brand-accent-hover: #a63d27;
 
-    /* ForestWatch product tokens */
+    /* ForestWatch product tokens — valid CSS colors, not HSL component lists */
     --surface: #ffffff;
     --surface-subtle: #f4f5f2;
     --surface-inset: #eaece6;
@@ -48,14 +47,14 @@
     --secondary-foreground: 120 9% 11%;
     --muted: 80 9% 91%;
     --muted-foreground: 120 4% 50%;
-    --accent: 11 60% 49%;
+    --accent-hsl: 115 18% 27%;
     --accent-foreground: 0 0% 100%;
     --destructive: 357 65% 37%;
     --destructive-foreground: 0 0% 100%;
     --border: 84 9% 91%;
     --input: 84 9% 91%;
     --ring: 115 39% 25%;
-    --radius: 0.5rem;
+    --radius: 0.375rem;
 }
 
 * {
@@ -66,15 +65,28 @@ html,
 body,
 #root {
     height: 100%;
+    min-height: 100%;
+    background-color: var(--bg-default);
+    color: var(--text-primary);
+}
+
+html {
+    overflow-x: clip;
 }
 
 body {
     margin: 0;
-    background-color: var(--bg-default);
-    color: var(--text-primary);
     font-family: "IBM Plex Sans", system-ui, sans-serif;
+    line-height: 1.5;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+}
+
+html.sales-root,
+html.sales-root body,
+html.sales-root #root {
+    background-color: #161916;
+    color: #eef0ec;
 }
 
 h1,
@@ -103,23 +115,8 @@ code {
 .card-flat {
     background: var(--bg-paper);
     border: 1px solid var(--bg-subtle);
-    border-radius: 0.5rem;
+    border-radius: 0.375rem;
     padding: 1.5rem;
-    transition:
-        transform 0.2s ease,
-        box-shadow 0.2s ease;
-}
-
-.card-flat:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 24px -12px rgba(26, 30, 26, 0.18);
-}
-
-.glass {
-    background: rgba(255, 255, 255, 0.82);
-    backdrop-filter: blur(20px) saturate(150%);
-    -webkit-backdrop-filter: blur(20px) saturate(150%);
-    border: 1px solid rgba(255, 255, 255, 0.55);
 }
 
 /* ForestWatch product surfaces */
@@ -148,6 +145,8 @@ code {
     text-transform: uppercase;
     font-weight: 700;
     color: var(--text-muted);
+    overflow-wrap: anywhere;
+    line-height: 1.35;
 }
 
 .fw-metric {
@@ -172,6 +171,11 @@ code {
     border-radius: 0.375rem;
     font-size: 0.875rem;
     font-weight: 600;
+    line-height: 1.35;
+    text-align: center;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    max-width: 100%;
     background: var(--accent-strong);
     color: #fff;
     border: none;
@@ -188,6 +192,54 @@ code {
     outline-offset: 2px;
 }
 
+.fw-button-primary:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+html:not(.sales-root) a:focus-visible,
+html:not(.sales-root) button:focus-visible,
+html:not(.sales-root) input:focus-visible,
+html:not(.sales-root) select:focus-visible,
+html:not(.sales-root) textarea:focus-visible,
+html:not(.sales-root) summary:focus-visible,
+html:not(.sales-root) [tabindex]:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
+.fw-layer-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-height: 2.25rem;
+    padding: 0.375rem 0.7rem;
+    border-radius: 0.375rem;
+    border: 1px solid var(--surface-inset);
+    background: var(--bg-paper);
+    color: var(--text-secondary);
+    font-size: 0.8125rem;
+    line-height: 1.3;
+    cursor: pointer;
+    user-select: none;
+    max-width: 100%;
+}
+
+.fw-layer-chip[data-active="true"] {
+    border-color: var(--accent);
+    background: var(--surface-subtle);
+    color: var(--text-primary);
+    font-weight: 600;
+}
+
+.fw-layer-chip input {
+    margin: 0;
+    accent-color: var(--brand-primary);
+    width: 0.9rem;
+    height: 0.9rem;
+    flex-shrink: 0;
+}
+
 /* Semantic badges — restrained, not color-only */
 .fw-badge {
     display: inline-flex;
@@ -195,12 +247,15 @@ code {
     gap: 0.25rem;
     font-size: 0.625rem;
     font-weight: 700;
-    letter-spacing: 0.12em;
+    letter-spacing: 0.08em;
     text-transform: uppercase;
     padding: 0.25rem 0.5rem;
     border-radius: 0.25rem;
     border: 1px solid transparent;
-    white-space: nowrap;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    max-width: 100%;
+    line-height: 1.3;
 }
 
 .fw-badge-critical,
@@ -274,16 +329,16 @@ code {
 
 /* Auth bg */
 .auth-shell {
-    background:
-        radial-gradient(
-            1200px 600px at 80% -10%,
-            rgba(45, 90, 39, 0.18),
-            transparent 60%
-        ),
-        radial-gradient(
-            900px 500px at 10% 110%,
-            rgba(131, 151, 136, 0.18),
-            transparent 60%
-        ),
-        var(--bg-default);
+    background: var(--bg-default);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    html:not(.sales-root) *,
+    html:not(.sales-root) *::before,
+    html:not(.sales-root) *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
 }

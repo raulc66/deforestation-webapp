@@ -70,8 +70,8 @@ export default function ExplorePage() {
   return (
     <div className="min-h-screen bg-[var(--surface-subtle)]" data-testid="explore-page">
       <header className="border-b border-[var(--surface-inset)] bg-white">
-        <div className="max-w-5xl mx-auto px-5 py-4 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-2.5">
+        <div className="max-w-5xl mx-auto px-5 py-4 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5 min-w-0">
             <div className="w-8 h-8 rounded-md bg-[var(--accent-strong)] flex items-center justify-center">
               <Trees className="w-4 h-4 text-white" strokeWidth={1.7} />
             </div>
@@ -84,7 +84,7 @@ export default function ExplorePage() {
               </div>
             </div>
           </div>
-          <div className="flex items-center gap-3 text-sm">
+          <div className="flex items-center gap-3 text-sm shrink-0">
             {signedIn && !demoSession ? (
               <Link
                 to="/dashboard"
@@ -131,12 +131,12 @@ export default function ExplorePage() {
           14-day trial with your own organization and monitored areas.
         </p>
 
-        <div className="mt-8 flex flex-col sm:flex-row gap-3">
+        <div className="mt-8 flex flex-col sm:flex-row sm:flex-wrap gap-3">
           {demoSession && !sessionKnown ? (
             <button
               type="button"
               disabled
-              className="fw-button-primary"
+              className="fw-button-primary w-full sm:w-auto"
               data-testid="explore-demo-loading"
             >
               Preparing demonstration…
@@ -146,24 +146,24 @@ export default function ExplorePage() {
               <button
                 type="button"
                 onClick={onContinue}
-                className="fw-button-primary"
+                className="fw-button-primary w-full sm:w-auto"
                 data-testid="explore-resume-demo"
               >
                 Continue demonstration
-                <ArrowRight className="w-4 h-4 ml-2" strokeWidth={1.7} />
+                <ArrowRight className="w-4 h-4 ml-2 shrink-0" strokeWidth={1.7} />
               </button>
               <button
                 type="button"
                 onClick={onRestart}
                 disabled={loading}
-                className="inline-flex items-center justify-center px-4 py-2.5 rounded-md text-sm font-semibold border border-[var(--surface-inset)] bg-white text-[var(--text-primary)] hover:bg-[var(--surface-subtle)]"
+                className="w-full sm:w-auto inline-flex items-center justify-center px-4 py-2.5 rounded-md text-sm font-semibold border border-[var(--surface-inset)] bg-white text-[var(--text-primary)] hover:bg-[var(--surface-subtle)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]"
                 data-testid="explore-restart-demo"
               >
                 {loading ? "Preparing demonstration…" : "Restart demonstration"}
               </button>
             </>
           ) : signedIn && !demoSession ? (
-            <Link to="/dashboard" className="fw-button-primary" data-testid="explore-go-dashboard">
+            <Link to="/dashboard" className="fw-button-primary w-full sm:w-auto" data-testid="explore-go-dashboard">
               Open your workspace
             </Link>
           ) : (
@@ -171,17 +171,17 @@ export default function ExplorePage() {
               type="button"
               onClick={onStart}
               disabled={loading}
-              className="fw-button-primary"
+              className="fw-button-primary w-full sm:w-auto"
               data-testid="start-interactive-demo"
             >
               {loading ? "Preparing demonstration…" : "Start interactive demo"}
-              {!loading && <ArrowRight className="w-4 h-4 ml-2" strokeWidth={1.7} />}
+              {!loading && <ArrowRight className="w-4 h-4 ml-2 shrink-0" strokeWidth={1.7} />}
             </button>
           )}
           {!signedIn && (
             <Link
               to="/register?from=demo"
-              className="inline-flex items-center justify-center px-4 py-2.5 rounded-md text-sm font-semibold border border-[var(--surface-inset)] bg-white text-[var(--text-primary)] hover:bg-[var(--surface-subtle)]"
+              className="w-full sm:w-auto inline-flex items-center justify-center px-4 py-2.5 rounded-md text-sm font-semibold border border-[var(--surface-inset)] bg-white text-[var(--text-primary)] hover:bg-[var(--surface-subtle)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]"
               data-testid="explore-create-organization"
             >
               Start a 14-day trial
@@ -189,14 +189,25 @@ export default function ExplorePage() {
           )}
         </div>
 
+        {canResume && (
+          <p className="mt-3 text-sm text-[var(--text-secondary)] max-w-xl leading-relaxed" data-testid="explore-demo-session-note">
+            You already have an active demonstration session. Continue where you left off, or restart from the beginning.
+          </p>
+        )}
+        {signedIn && !demoSession && (
+          <p className="mt-3 text-sm text-[var(--text-secondary)] max-w-xl leading-relaxed" data-testid="explore-workspace-note">
+            You are signed in to a real ForestWatch organization, not the public demonstration.
+          </p>
+        )}
+
         {error && (
           <p className="mt-4 text-sm text-[var(--signal-strong)]" data-testid="explore-error" role="alert">
             {error}
           </p>
         )}
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-12">
-          <SurfaceCard className="p-5" testId="explore-geography">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-12">
+          <SurfaceCard variant="emphasis" className="p-5 sm:col-span-2 lg:col-span-1" testId="explore-geography">
             <div className="fw-kicker mb-2 flex items-center gap-1.5">
               <MapPin className="w-3 h-3" /> Geography
             </div>
@@ -205,13 +216,13 @@ export default function ExplorePage() {
               has somewhere to start. This is preview data, not an empty product.
             </p>
           </SurfaceCard>
-          <SurfaceCard className="p-5" testId="explore-priority">
+          <SurfaceCard variant="inset" className="p-5" testId="explore-priority">
             <div className="fw-kicker mb-2">Priority</div>
             <p className="text-sm text-[var(--text-secondary)] leading-relaxed">
               Not every observation is urgent. The queue shows what to investigate first.
             </p>
           </SurfaceCard>
-          <SurfaceCard className="p-5" testId="explore-evidence">
+          <SurfaceCard variant="inset" className="p-5" testId="explore-evidence">
             <div className="fw-kicker mb-2 flex items-center gap-1.5">
               <ShieldQuestion className="w-3 h-3" /> Evidence
             </div>

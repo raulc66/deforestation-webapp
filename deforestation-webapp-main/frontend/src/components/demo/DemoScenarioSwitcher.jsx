@@ -16,7 +16,7 @@ export default function DemoScenarioSwitcher({
               key={scenario.id}
               type="button"
               onClick={() => onSelect?.(scenario.id)}
-              className={`text-xs px-3 py-1.5 rounded-md border transition-colors ${
+              className={`text-xs px-3 py-1.5 min-h-8 rounded-md border ${
                 active
                   ? "border-[var(--accent)] bg-[var(--surface-subtle)] font-semibold"
                   : "border-[var(--surface-inset)] text-[var(--text-secondary)] hover:bg-[var(--surface-subtle)]"

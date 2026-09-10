@@ -7,7 +7,7 @@ export default function ProtectedRoute({ children }) {
     return (
       <div
         data-testid="auth-loading"
-        className="flex items-center justify-center min-h-screen"
+        className="flex items-center justify-center min-h-screen bg-[var(--bg-default,#f4f5f2)]"
       >
         <div className="text-sm tracking-[0.2em] uppercase text-[#7b827b]">
           Loading

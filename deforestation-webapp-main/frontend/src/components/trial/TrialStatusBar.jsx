@@ -19,7 +19,7 @@ export default function TrialStatusBar() {
       className="mx-3 mt-3 px-3 py-2 rounded-md border border-[var(--surface-inset)] bg-[var(--surface-subtle)]"
       data-testid="trial-status-bar"
     >
-      <div className="flex items-baseline justify-between gap-2">
+      <div className="flex items-baseline justify-between gap-2 min-w-0">
         <div className="fw-kicker" data-testid="trial-status-label">
           {label}
         </div>

@@ -230,7 +230,7 @@ export default function IntelligenceCommandCenter({
                     <button
                       type="button"
                       onClick={() => setSelectedId(item.event_id)}
-                      className={`w-full text-left p-3 rounded-md border transition-colors ${
+                      className={`w-full text-left p-3 rounded-md border min-w-0 ${
                         active
                           ? "border-[var(--accent)] bg-[var(--surface-subtle)]"
                           : "border-[var(--surface-inset)] hover:bg-[var(--surface-subtle)]/60"
@@ -242,13 +242,13 @@ export default function IntelligenceCommandCenter({
                           <div className="text-xs uppercase tracking-wide text-[var(--text-muted)]">
                             {isDisturbance ? "Forest disturbance" : item.incident_category ?? "Intelligence"}
                           </div>
-                          <div className="text-sm font-semibold truncate mt-0.5">
+                          <div className="text-sm font-semibold break-words mt-0.5">
                             {item.region ?? item.event_id}
                           </div>
                           {item.monitored_area?.name && (
-                            <div className="text-xs text-[var(--text-muted)] mt-1 flex items-center gap-1">
-                              <Layers className="w-3 h-3" />
-                              {item.monitored_area.name}
+                            <div className="text-xs text-[var(--text-muted)] mt-1 flex items-start gap-1 min-w-0">
+                              <Layers className="w-3 h-3 shrink-0 mt-0.5" />
+                              <span className="break-words">{item.monitored_area.name}</span>
                             </div>
                           )}
                         </div>

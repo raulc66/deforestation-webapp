@@ -67,7 +67,7 @@ function DemoDashboard({ demo }) {
           )}
 
           <div className="grid grid-cols-1 xl:grid-cols-4 gap-5 mb-8">
-            <div className="xl:col-span-1 space-y-4">
+            <div className="order-2 xl:order-1 xl:col-span-1 space-y-4 min-w-0">
               <DemoGuideRail
                 guide={status?.guide ?? []}
                 currentStep={status?.guide_step}
@@ -85,7 +85,7 @@ function DemoDashboard({ demo }) {
                 />
               )}
             </div>
-            <div className="xl:col-span-3 min-w-0">
+            <div className="order-1 xl:order-2 xl:col-span-3 min-w-0">
               <IntelligenceSection />
             </div>
           </div>

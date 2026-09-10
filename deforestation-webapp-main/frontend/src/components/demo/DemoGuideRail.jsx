@@ -21,7 +21,7 @@ export default function DemoGuideRail({
               <button
                 type="button"
                 onClick={() => onSelect?.(step.id)}
-                className={`w-full text-left rounded-md px-2.5 py-2 transition-colors ${
+                className={`w-full text-left rounded-md px-2.5 py-2 min-w-0 ${
                   active
                     ? "bg-[var(--surface-subtle)] border border-[var(--accent)]"
                     : "border border-transparent hover:bg-[var(--surface-subtle)]"
@@ -32,7 +32,7 @@ export default function DemoGuideRail({
                   <span className="font-mono text-[10px] text-[var(--text-muted)]">
                     {String(index + 1).padStart(2, "0")}
                   </span>
-                  <span className="text-sm font-semibold text-[var(--text-primary)]">
+                  <span className="text-sm font-semibold text-[var(--text-primary)] break-words min-w-0">
                     {step.title}
                   </span>
                 </div>

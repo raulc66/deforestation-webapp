@@ -59,4 +59,25 @@ describe("SalesPage", () => {
         .length
     ).toBeGreaterThan(0);
   });
+
+  it("paints the document root for first-load sales background", () => {
+    const { unmount } = render(
+      <MemoryRouter>
+        <SalesPage />
+      </MemoryRouter>
+    );
+    expect(document.documentElement.classList.contains("sales-root")).toBe(true);
+    unmount();
+    expect(document.documentElement.classList.contains("sales-root")).toBe(false);
+  });
+
+  it("frames product surfaces as intentional previews rather than missing screenshots", () => {
+    render(
+      <MemoryRouter>
+        <SalesPage />
+      </MemoryRouter>
+    );
+    expect(screen.getAllByText("Interface preview").length).toBeGreaterThan(0);
+    expect(screen.queryByText("Screenshot placeholder")).not.toBeInTheDocument();
+  });
 });

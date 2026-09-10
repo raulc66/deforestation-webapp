@@ -1,4 +1,5 @@
 import { COMMERCIAL } from "@/config/commercial";
+import { useEffect } from "react";
 import ArchitectureDiagram from "@/components/sales/ArchitectureDiagram";
 import ProductShowcase from "@/components/sales/ProductShowcase";
 import "./sales.css";
@@ -91,6 +92,11 @@ function purchaseHref(url) {
 }
 
 export default function SalesPage() {
+  useEffect(() => {
+    document.documentElement.classList.add("sales-root");
+    return () => document.documentElement.classList.remove("sales-root");
+  }, []);
+
   return (
     <div className="sales" data-testid="sales-page">
       <a className="sales-skip" href="#sales-main">

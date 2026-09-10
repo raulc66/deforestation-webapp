@@ -70,7 +70,8 @@ export default function ActiveIntelligenceEvents({
             Ranked by priority · organization-relevant signals highlighted
           </p>
         </div>
-        <table className="w-full text-sm" data-testid="intelligence-events-table">
+        <div className="overflow-x-auto">
+        <table className="w-full min-w-[36rem] text-sm" data-testid="intelligence-events-table">
           <thead className="bg-[var(--surface-subtle)] text-[var(--text-muted)]">
             <tr>
               <th className="text-left font-semibold px-5 py-3">Region</th>
@@ -120,7 +121,7 @@ export default function ActiveIntelligenceEvents({
                     className="border-t border-[var(--surface-inset)] hover:bg-[var(--surface-subtle)]/60"
                     data-testid={`intelligence-event-row-${evt.id ?? idx}`}
                   >
-                    <td className="px-5 py-3 font-medium text-[var(--text-primary)]">
+                    <td className="px-5 py-3 font-medium text-[var(--text-primary)] min-w-0 max-w-[12rem] break-words">
                       {evt.region}
                     </td>
                     <td className="px-5 py-3 hidden md:table-cell text-xs">
@@ -181,6 +182,7 @@ export default function ActiveIntelligenceEvents({
               })}
           </tbody>
         </table>
+        </div>
       </div>
     </div>
   );

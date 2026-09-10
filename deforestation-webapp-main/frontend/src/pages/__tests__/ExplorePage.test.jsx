@@ -142,6 +142,7 @@ describe("ExplorePage", () => {
     expect(screen.queryByTestId("start-interactive-demo")).not.toBeInTheDocument();
     expect(screen.getByTestId("explore-signin")).toBeInTheDocument();
     expect(screen.queryByTestId("explore-continue")).not.toBeInTheDocument();
+    expect(screen.getByTestId("explore-demo-session-note")).toBeInTheDocument();
     expect(__mockNavigate).not.toHaveBeenCalled();
   });
 
@@ -206,6 +207,7 @@ describe("ExplorePage", () => {
     );
     expect(screen.getByTestId("explore-go-dashboard")).toHaveTextContent(/Open your workspace/i);
     expect(screen.getByTestId("explore-continue")).toHaveAttribute("href", "/dashboard");
+    expect(screen.getByTestId("explore-workspace-note")).toBeInTheDocument();
     expect(screen.queryByTestId("start-interactive-demo")).not.toBeInTheDocument();
     expect(screen.queryByTestId("explore-resume-demo")).not.toBeInTheDocument();
     expect(__mockNavigate).not.toHaveBeenCalled();

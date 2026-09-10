@@ -40,7 +40,13 @@ export default function DisturbanceInvestigationPanel({
   useEffect(() => {
     if (!opened || !panelRef.current) return;
     if (typeof panelRef.current.scrollIntoView === "function") {
-      panelRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+      const reduceMotion =
+        typeof window !== "undefined" &&
+        window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
+      panelRef.current.scrollIntoView({
+        behavior: reduceMotion ? "auto" : "smooth",
+        block: "start",
+      });
     }
     if (typeof panelRef.current.focus === "function") {
       panelRef.current.focus();
@@ -86,7 +92,11 @@ export default function DisturbanceInvestigationPanel({
   const simulationNotice = demoSimulationNotice(demo.lastSimulation);
 
   return (
-    <SurfaceCard variant="inset" className="p-5" testId={testId}>
+    <SurfaceCard
+      variant="inset"
+      className={`p-5 min-w-0${opened ? " ring-2 ring-[var(--accent)] bg-white" : ""}`}
+      testId={testId}
+    >
       <div
         ref={panelRef}
         tabIndex={opened ? -1 : undefined}
@@ -98,12 +108,13 @@ export default function DisturbanceInvestigationPanel({
         <p
           className="mb-3 text-sm text-[var(--text-secondary)] leading-relaxed"
           data-testid="investigation-opened-copy"
+          role="status"
         >
           Review observation, inference, and evidence for this prepared demonstration disturbance.
           Satellite disturbance is not a legal finding.
         </p>
       )}
-      <h3 className="text-base font-bold tracking-tight text-[var(--text-primary)] leading-snug">
+      <h3 className="text-base font-bold tracking-tight text-[var(--text-primary)] leading-snug break-words">
         {assessment}
       </h3>
 
@@ -123,25 +134,25 @@ export default function DisturbanceInvestigationPanel({
 
       <section className="mt-5" data-testid="investigation-observation">
         <div className="fw-kicker mb-2">Observation</div>
-        <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
+        <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3 text-sm">
           {typeof affectedHa === "number" && (
-            <div>
+            <div className="min-w-0">
               <dt className="fw-kicker">Affected area</dt>
               <dd className="font-mono tabular-nums font-semibold">{affectedHa.toFixed(1)} ha</dd>
             </div>
           )}
           {monitored.name && (
-            <div>
+            <div className="min-w-0">
               <dt className="fw-kicker flex items-center gap-1">
-                <MapPin className="w-3 h-3" /> Monitored area
+                <MapPin className="w-3 h-3 shrink-0" /> Monitored area
               </dt>
-              <dd className="font-medium">{monitored.name}</dd>
+              <dd className="font-medium break-words">{monitored.name}</dd>
             </div>
           )}
           {item.region && (
-            <div>
+            <div className="min-w-0">
               <dt className="fw-kicker">Region</dt>
-              <dd>{item.region}</dd>
+              <dd className="break-words">{item.region}</dd>
             </div>
           )}
         </dl>
@@ -177,7 +188,7 @@ export default function DisturbanceInvestigationPanel({
       </section>
 
       <section
-        className={`mt-5 pt-4 border-t border-[var(--surface-inset)]${opened ? " rounded-md ring-1 ring-[var(--accent)]/40 px-3 pb-3" : ""}`}
+        className={`mt-5 pt-4 border-t border-[var(--surface-inset)]${opened ? " rounded-md bg-[var(--surface-subtle)] px-3 pb-3 pt-3" : ""}`}
         data-testid="investigation-evidence"
       >
         <EvidenceBlock summary={summary} disturbance={disturbance} />
@@ -207,7 +218,7 @@ export default function DisturbanceInvestigationPanel({
           <button
             type="button"
             onClick={handleSimulate}
-            className="mt-2 w-full text-sm font-semibold px-4 py-2.5 rounded-md border border-[var(--surface-inset)] hover:bg-[var(--surface-subtle)]"
+            className="mt-2 w-full text-sm font-semibold px-4 py-2.5 rounded-md border border-[var(--surface-inset)] bg-white hover:bg-[var(--surface-subtle)]"
             data-testid="demo-simulate-alert"
           >
             Simulate a notification

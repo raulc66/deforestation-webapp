@@ -33,7 +33,7 @@ export default function ProductShowcase() {
         {FRAMES.map((frame) => (
           <figure key={frame.id} className="sales-frame" data-testid={`sales-showcase-${frame.id}`}>
             <figcaption>
-              <div className="sales-frame-label">Screenshot placeholder</div>
+              <div className="sales-frame-label">Interface preview</div>
               <div className="sales-frame-title">{frame.title}</div>
               <p className="sales-note" style={{ marginTop: "0.4rem" }}>
                 {frame.caption}
@@ -49,9 +49,9 @@ export default function ProductShowcase() {
         ))}
       </div>
       <p className="sales-note">
-        This repository does not currently vendor product screenshots. Replace these labeled
-        frames with captures of the live Command Center, map, investigation, alerts, and AOI
-        surfaces. Do not substitute invented UI.
+        Live product captures are not bundled with this package. These frames mark the
+        Command Center, map, investigation, alerts, and monitored-area surfaces as they
+        ship in the application. Do not treat the wireframes as screenshots.
       </p>
     </div>
   );

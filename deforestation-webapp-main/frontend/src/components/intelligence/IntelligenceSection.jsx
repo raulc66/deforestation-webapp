@@ -170,7 +170,7 @@ export default function IntelligenceSection() {
   return (
     <>
       <section className="mb-12" data-testid="intelligence-section">
-        <div className="flex items-end justify-between gap-4 mb-6">
+        <div className="flex flex-wrap items-end justify-between gap-4 mb-6 min-w-0">
           <div>
             <div className="fw-kicker">Environmental intelligence</div>
             <h2 className="text-2xl font-semibold tracking-tight mt-1 text-[var(--text-primary)]">

@@ -38,7 +38,7 @@ export default function AlertDeliveryHistory({
             Every alert this organization received or attempted to receive.
           </p>
         </div>
-        <div className="flex flex-wrap gap-1.5" data-testid="alert-history-filters">
+        <div className="flex flex-wrap gap-1.5 w-full sm:w-auto" data-testid="alert-history-filters">
           {FILTERS.map((filter) => (
             <button
               key={filter.value || "all"}
@@ -46,7 +46,7 @@ export default function AlertDeliveryHistory({
               aria-pressed={activeFilter === filter.value}
               data-testid={`alert-history-filter-${filter.value || "all"}`}
               onClick={() => onFilterChange?.(filter.value)}
-              className={`rounded-md border px-2.5 py-1 text-xs transition-colors ${
+              className={`min-h-8 rounded-md border px-2.5 py-1 text-xs ${
                 activeFilter === filter.value
                   ? "border-[var(--accent)] bg-[var(--surface-subtle)] font-semibold"
                   : "border-[var(--surface-inset)] text-[var(--text-muted)]"
@@ -90,7 +90,7 @@ export default function AlertDeliveryHistory({
                       data-testid={`alert-delivery-${delivery.id}-area`}
                     >
                       <Layers className="w-3 h-3" />
-                      {delivery.monitored_area_names.join(", ")}
+                      <span className="break-words">{delivery.monitored_area_names.join(", ")}</span>
                     </div>
                   )}
                 </div>
@@ -111,14 +111,14 @@ export default function AlertDeliveryHistory({
                 </div>
               </div>
 
-              <dl className="grid grid-cols-2 md:grid-cols-3 gap-3 mt-4">
-                <div>
+              <dl className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 mt-4">
+                <div className="min-w-0">
                   <dt className="fw-kicker">Generated</dt>
                   <dd className="text-sm text-[var(--text-primary)] mt-0.5">
                     {formatTimestamp(delivery.created_at)}
                   </dd>
                 </div>
-                <div>
+                <div className="min-w-0">
                   <dt className="fw-kicker">Delivered</dt>
                   <dd
                     className="text-sm text-[var(--text-primary)] mt-0.5"
@@ -127,10 +127,10 @@ export default function AlertDeliveryHistory({
                     {delivery.sent_at ? formatTimestamp(delivery.sent_at) : "—"}
                   </dd>
                 </div>
-                <div>
+                <div className="min-w-0 sm:col-span-2 md:col-span-1">
                   <dt className="fw-kicker">Channels</dt>
                   <dd
-                    className="text-sm text-[var(--text-primary)] mt-0.5"
+                    className="text-sm text-[var(--text-primary)] mt-0.5 break-words"
                     data-testid={`alert-delivery-${delivery.id}-channels`}
                   >
                     {delivery.channel_outcomes?.length

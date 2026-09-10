@@ -1314,6 +1314,7 @@ describe("IntelligenceMap", () => {
       await waitForLoad();
       const toggle = screen.getByTestId("layer-toggle-monitored_areas");
       expect(toggle).toHaveTextContent("Monitored forests");
+      expect(toggle).toHaveAttribute("data-active", "true");
       expect(toggle.querySelector("input")).toHaveAttribute(
         "aria-label",
         "Toggle Monitored forests layer"
@@ -1343,6 +1344,10 @@ describe("IntelligenceMap", () => {
       mockRemoveLayer.mockClear();
       fireEvent.click(input);
       expect(input).not.toBeChecked();
+      expect(screen.getByTestId("layer-toggle-monitored_areas")).toHaveAttribute(
+        "data-active",
+        "false"
+      );
       await waitFor(() => {
         expect(mockRemoveLayer).toHaveBeenCalled();
       });

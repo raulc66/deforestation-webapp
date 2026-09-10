@@ -60,8 +60,8 @@ export default function AlertOperationsPanel({ overview, loading = false, simula
         />
       </div>
 
-      <div className="grid grid-cols-3 gap-3 mb-3">
-        <div data-testid="alert-operations-attention">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
+        <div className="min-w-0" data-testid="alert-operations-attention">
           <div className="fw-kicker">Needs attention</div>
           <div
             className={`fw-metric-value ${attention > 0 ? "text-[var(--signal-strong)]" : ""}`}
@@ -69,11 +69,11 @@ export default function AlertOperationsPanel({ overview, loading = false, simula
             {attention}
           </div>
         </div>
-        <div data-testid="alert-operations-delivered">
+        <div className="min-w-0" data-testid="alert-operations-delivered">
           <div className="fw-kicker">Delivered</div>
           <div className="fw-metric-value">{overview.sent_count ?? 0}</div>
         </div>
-        <div data-testid="alert-operations-policies">
+        <div className="min-w-0" data-testid="alert-operations-policies">
           <div className="fw-kicker">Active policies</div>
           <div className="fw-metric-value">{overview.active_policy_count ?? 0}</div>
         </div>
@@ -88,16 +88,16 @@ export default function AlertOperationsPanel({ overview, loading = false, simula
           {recent.map((delivery) => (
             <li
               key={delivery.id}
-              className="flex items-center justify-between gap-2 text-xs"
+              className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-2 text-xs min-w-0"
               data-testid={`alert-operations-delivery-${delivery.id}`}
             >
-              <span className="min-w-0 truncate text-[var(--text-primary)]">
+              <span className="min-w-0 break-words text-[var(--text-primary)]">
                 {alertStageLabel(delivery.alert_stage)}
                 {delivery.monitored_area_names?.length
                   ? ` · ${delivery.monitored_area_names[0]}`
                   : ""}
               </span>
-              <span className="flex items-center gap-2 shrink-0">
+              <span className="flex flex-wrap items-center gap-2 sm:shrink-0">
                 <span className="text-[var(--text-muted)]">
                   {formatTimestamp(delivery.sent_at ?? delivery.created_at)}
                 </span>

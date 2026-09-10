@@ -157,15 +157,17 @@ export default function TrialSetupPage() {
             <div className="grid grid-cols-2 gap-2">
               {[["west", west, setWest], ["south", south, setSouth], ["east", east, setEast], ["north", north, setNorth]].map(
                 ([id, value, setter]) => (
-                  <input
-                    key={id}
-                    data-testid={`trial-bbox-${id}`}
-                    aria-label={id}
-                    className="h-10 px-3 border border-[var(--surface-inset)] rounded-md bg-white text-sm font-mono"
-                    value={value}
-                    onChange={(e) => setter(e.target.value)}
-                    required
-                  />
+                  <label key={id} className="min-w-0 block">
+                    <span className="fw-kicker mb-1 block">{id}</span>
+                    <input
+                      data-testid={`trial-bbox-${id}`}
+                      aria-label={id}
+                      className="w-full min-w-0 h-10 px-3 border border-[var(--surface-inset)] rounded-md bg-white text-sm font-mono"
+                      value={value}
+                      onChange={(e) => setter(e.target.value)}
+                      required
+                    />
+                  </label>
                 )
               )}
             </div>
@@ -204,7 +206,7 @@ export default function TrialSetupPage() {
           <button
             type="submit"
             disabled={saving}
-            className="fw-button-primary text-sm py-2.5 px-4"
+            className="fw-button-primary text-sm py-2.5 px-4 w-full sm:w-auto"
             data-testid="trial-setup-submit"
           >
             {saving ? "Saving…" : "Open Command Center"}

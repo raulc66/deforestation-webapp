@@ -28,7 +28,7 @@ export default function DemoConversionCta({ moment, onClick }) {
       <Link
         to="/register?from=demo"
         onClick={onClick}
-        className="inline-flex mt-3 fw-button-primary text-xs py-2 px-3"
+        className="inline-flex mt-3 fw-button-primary text-xs py-2 px-3 w-full"
         data-testid="demo-conversion-cta"
       >
         Create a free trial organization to continue with your own monitored areas
