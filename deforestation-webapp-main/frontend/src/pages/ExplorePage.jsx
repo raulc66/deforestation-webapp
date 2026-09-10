@@ -28,6 +28,10 @@ export default function ExplorePage() {
     Boolean(demo.status?.budget?.exhausted) || remainingInvestigations === 0;
   const canResume = demoSession && sessionKnown && !investigationExhausted;
 
+  const enterDemo = () => {
+    navigate("/dashboard", { replace: true });
+  };
+
   const onStart = async () => {
     setError("");
     setLoading(true);
@@ -39,10 +43,27 @@ export default function ExplorePage() {
         // Server session is already fresh; dashboard will reload status.
       }
       setLoading(false);
-      navigate("/dashboard", { replace: true });
+      enterDemo();
     } else {
       setLoading(false);
       setError(res.error || "The demonstration could not be started.");
+    }
+  };
+
+  const onContinue = () => {
+    enterDemo();
+  };
+
+  const onRestart = async () => {
+    setError("");
+    setLoading(true);
+    try {
+      await demo.resetDemo();
+      setLoading(false);
+      enterDemo();
+    } catch {
+      setLoading(false);
+      setError("The demonstration could not be restarted.");
     }
   };
 
@@ -64,7 +85,7 @@ export default function ExplorePage() {
             </div>
           </div>
           <div className="flex items-center gap-3 text-sm">
-            {signedIn ? (
+            {signedIn && !demoSession ? (
               <Link
                 to="/dashboard"
                 className="font-semibold text-[var(--accent)] hover:underline"
@@ -124,7 +145,7 @@ export default function ExplorePage() {
             <>
               <button
                 type="button"
-                onClick={() => navigate("/dashboard")}
+                onClick={onContinue}
                 className="fw-button-primary"
                 data-testid="explore-resume-demo"
               >
@@ -133,7 +154,7 @@ export default function ExplorePage() {
               </button>
               <button
                 type="button"
-                onClick={onStart}
+                onClick={onRestart}
                 disabled={loading}
                 className="inline-flex items-center justify-center px-4 py-2.5 rounded-md text-sm font-semibold border border-[var(--surface-inset)] bg-white text-[var(--text-primary)] hover:bg-[var(--surface-subtle)]"
                 data-testid="explore-restart-demo"

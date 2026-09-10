@@ -8,7 +8,10 @@ import DemoScenarioSwitcher from "@/components/demo/DemoScenarioSwitcher";
 import DisturbanceInvestigationPanel from "@/components/intelligence/DisturbanceInvestigationPanel";
 import IntelligenceCommandCenter from "@/components/intelligence/IntelligenceCommandCenter";
 
+const { __mockNavigate, __resetRouterMocks } = require("react-router-dom");
+
 const mockStartDemo = jest.fn();
+const mockResetDemo = jest.fn();
 const mockAuth = {
   user: false,
   startDemo: mockStartDemo,
@@ -21,6 +24,7 @@ const mockDemo = {
   simulateAlert: jest.fn(),
   setGuideStep: jest.fn(),
   refresh: jest.fn(),
+  resetDemo: (...args) => mockResetDemo(...args),
 };
 
 jest.mock("@/context/AuthContext", () => ({
@@ -82,10 +86,12 @@ const EVIDENCE_ITEM = {
 describe("ExplorePage", () => {
   beforeEach(() => {
     mockStartDemo.mockReset();
+    mockResetDemo.mockReset();
     mockDemo.refresh.mockReset();
     mockAuth.user = false;
     mockDemo.isDemo = false;
     mockDemo.status = null;
+    __resetRouterMocks();
   });
 
   it("renders the demonstration entry and primary CTA", () => {
@@ -118,6 +124,40 @@ describe("ExplorePage", () => {
     );
     fireEvent.click(screen.getByTestId("start-interactive-demo"));
     await waitFor(() => expect(mockStartDemo).toHaveBeenCalled());
+    expect(__mockNavigate).toHaveBeenCalledWith("/dashboard", { replace: true });
+  });
+
+  it("keeps a returning demo visitor on /explore until they choose Continue", () => {
+    mockAuth.user = { id: "demo:sess-1", provider: "demo", name: "Demonstration visitor" };
+    mockDemo.isDemo = true;
+    mockDemo.status = STATUS;
+    render(
+      <MemoryRouter initialEntries={["/explore"]}>
+        <ExplorePage />
+      </MemoryRouter>
+    );
+    expect(screen.getByTestId("explore-page")).toBeInTheDocument();
+    expect(screen.getByTestId("explore-resume-demo")).toHaveTextContent(/Continue demonstration/i);
+    expect(screen.getByTestId("explore-restart-demo")).toHaveTextContent(/Restart demonstration/i);
+    expect(screen.queryByTestId("start-interactive-demo")).not.toBeInTheDocument();
+    expect(screen.getByTestId("explore-signin")).toBeInTheDocument();
+    expect(screen.queryByTestId("explore-continue")).not.toBeInTheDocument();
+    expect(__mockNavigate).not.toHaveBeenCalled();
+  });
+
+  it("continues an existing demo only after an explicit Continue choice", () => {
+    mockAuth.user = { id: "demo:sess-1", provider: "demo", name: "Demonstration visitor" };
+    mockDemo.isDemo = true;
+    mockDemo.status = STATUS;
+    render(
+      <MemoryRouter>
+        <ExplorePage />
+      </MemoryRouter>
+    );
+    fireEvent.click(screen.getByTestId("explore-resume-demo"));
+    expect(mockStartDemo).not.toHaveBeenCalled();
+    expect(mockResetDemo).not.toHaveBeenCalled();
+    expect(__mockNavigate).toHaveBeenCalledWith("/dashboard", { replace: true });
   });
 
   it("does not resume an exhausted demo session from Continue", () => {
@@ -140,7 +180,7 @@ describe("ExplorePage", () => {
   });
 
   it("lets a visitor with remaining budget continue or restart", async () => {
-    mockStartDemo.mockResolvedValue({ ok: true, user: { provider: "demo" } });
+    mockResetDemo.mockResolvedValue({ budget: STATUS.budget, reset_count: 1 });
     mockAuth.user = { id: "demo:sess-1", provider: "demo", name: "Demonstration visitor" };
     mockDemo.isDemo = true;
     mockDemo.status = STATUS;
@@ -151,7 +191,24 @@ describe("ExplorePage", () => {
     );
     expect(screen.getByTestId("explore-resume-demo")).toBeInTheDocument();
     fireEvent.click(screen.getByTestId("explore-restart-demo"));
-    await waitFor(() => expect(mockStartDemo).toHaveBeenCalled());
+    await waitFor(() => expect(mockResetDemo).toHaveBeenCalled());
+    expect(mockStartDemo).not.toHaveBeenCalled();
+    expect(__mockNavigate).toHaveBeenCalledWith("/dashboard", { replace: true });
+  });
+
+  it("keeps a real authenticated operator on the workspace path", () => {
+    mockAuth.user = { id: "user-1", provider: "local", name: "Ada Forester" };
+    mockDemo.isDemo = false;
+    render(
+      <MemoryRouter>
+        <ExplorePage />
+      </MemoryRouter>
+    );
+    expect(screen.getByTestId("explore-go-dashboard")).toHaveTextContent(/Open your workspace/i);
+    expect(screen.getByTestId("explore-continue")).toHaveAttribute("href", "/dashboard");
+    expect(screen.queryByTestId("start-interactive-demo")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("explore-resume-demo")).not.toBeInTheDocument();
+    expect(__mockNavigate).not.toHaveBeenCalled();
   });
 
   it("returns to a clean public demo entry after logout", () => {

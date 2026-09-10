@@ -37,7 +37,12 @@ module.exports = {
   MemoryRouter: ({ children }) => children,
   Routes: ({ children }) => children,
   Route: ({ element }) => element,
-  Navigate: () => null,
+  Navigate: ({ to, replace }) =>
+    React.createElement("div", {
+      "data-testid": "navigate",
+      "data-to": to,
+      "data-replace": String(Boolean(replace)),
+    }),
   useLocation: () => ({ pathname: "/", search: "", hash: "", state: null }),
   __mockNavigate: mockNavigate,
   __setMockParams,
