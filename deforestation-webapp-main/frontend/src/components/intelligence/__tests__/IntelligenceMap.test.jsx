@@ -1315,6 +1315,7 @@ describe("IntelligenceMap", () => {
       const toggle = screen.getByTestId("layer-toggle-monitored_areas");
       expect(toggle).toHaveTextContent("Monitored forests");
       expect(toggle).toHaveAttribute("data-active", "true");
+      expect(toggle).toHaveClass("fw-layer-chip");
       expect(toggle.querySelector("input")).toHaveAttribute(
         "aria-label",
         "Toggle Monitored forests layer"

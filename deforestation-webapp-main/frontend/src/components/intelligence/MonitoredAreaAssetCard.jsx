@@ -17,7 +17,7 @@ export default function MonitoredAreaAssetCard({ area }) {
     <SurfaceCard variant="inset" className="p-4" testId={`monitored-area-asset-${area.id}`}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <h4 className="text-sm font-bold text-[var(--text-primary)] truncate">{area.name}</h4>
+          <h4 className="text-sm font-bold text-[var(--text-primary)] fw-name">{area.name}</h4>
           <p className="text-xs text-[var(--text-muted)] mt-0.5 flex items-center gap-1">
             <MapPin className="w-3 h-3 shrink-0" />
             {area.country ?? "—"}

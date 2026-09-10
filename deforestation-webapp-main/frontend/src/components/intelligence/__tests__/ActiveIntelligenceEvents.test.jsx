@@ -97,6 +97,33 @@ describe("ActiveIntelligenceEvents", () => {
       expect(screen.getByText("Carpathian Forest")).toBeInTheDocument();
     });
 
+    it("keeps long region names on a word-wrapping column instead of a squeezed cell", () => {
+      const longName = "Maramureș Conservation Stand";
+      render(
+        <ActiveIntelligenceEvents
+          loading={false}
+          events={[{ ...EVT_HIGH, id: "evt-long", region: longName }]}
+        />
+      );
+      const cell = screen.getByTestId("intelligence-event-region-evt-long");
+      expect(cell).toHaveTextContent(longName);
+      expect(cell).toHaveClass("fw-name-cell");
+      expect(cell.className).not.toMatch(/break-all|break-words|max-w-\[12rem\]/);
+    });
+
+    it("wraps another long stand name with the same column allocation", () => {
+      const longName = "Harghita Forest Reserve Working Block";
+      render(
+        <ActiveIntelligenceEvents
+          loading={false}
+          events={[{ ...EVT_MEDIUM, id: "evt-harghita", region: longName }]}
+        />
+      );
+      const cell = screen.getByTestId("intelligence-event-region-evt-harghita");
+      expect(cell).toHaveTextContent(longName);
+      expect(cell).toHaveClass("fw-name-cell");
+    });
+
     it("displays priority score formatted to 4 decimals", () => {
       render(
         <ActiveIntelligenceEvents loading={false} events={[EVT_HIGH]} />

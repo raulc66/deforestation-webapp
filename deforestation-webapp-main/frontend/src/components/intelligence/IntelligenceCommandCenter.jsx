@@ -237,23 +237,28 @@ export default function IntelligenceCommandCenter({
                       }`}
                       data-testid={`command-center-queue-${item.event_id}`}
                     >
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0 flex-1">
                           <div className="text-xs uppercase tracking-wide text-[var(--text-muted)]">
                             {isDisturbance ? "Forest disturbance" : item.incident_category ?? "Intelligence"}
                           </div>
-                          <div className="text-sm font-semibold break-words mt-0.5">
+                          <div
+                            className="text-sm font-semibold fw-name mt-0.5"
+                            data-testid={`command-center-queue-name-${item.event_id}`}
+                          >
                             {item.region ?? item.event_id}
                           </div>
                           {item.monitored_area?.name && (
-                            <div className="text-xs text-[var(--text-muted)] mt-1 flex items-start gap-1 min-w-0">
+                            <div className="text-xs text-[var(--text-muted)] mt-1 flex items-start gap-1">
                               <Layers className="w-3 h-3 shrink-0 mt-0.5" />
-                              <span className="break-words">{item.monitored_area.name}</span>
+                              <span className="fw-name">{item.monitored_area.name}</span>
                             </div>
                           )}
                         </div>
                         {isDisturbance && d.investigation_priority && (
-                          <PriorityBadge priority={d.investigation_priority} />
+                          <div className="shrink-0">
+                            <PriorityBadge priority={d.investigation_priority} />
+                          </div>
                         )}
                       </div>
                     </button>

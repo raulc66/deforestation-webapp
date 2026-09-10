@@ -74,7 +74,7 @@ export default function ActiveIntelligenceEvents({
         <table className="w-full min-w-[36rem] text-sm" data-testid="intelligence-events-table">
           <thead className="bg-[var(--surface-subtle)] text-[var(--text-muted)]">
             <tr>
-              <th className="text-left font-semibold px-5 py-3">Region</th>
+              <th className="text-left font-semibold px-5 py-3 fw-name-cell">Region</th>
               <th className="text-left font-semibold px-5 py-3 hidden md:table-cell">Type</th>
               <th className="text-left font-semibold px-5 py-3 hidden lg:table-cell">AOI</th>
               <th className="text-left font-semibold px-5 py-3 hidden sm:table-cell">Severity</th>
@@ -121,7 +121,10 @@ export default function ActiveIntelligenceEvents({
                     className="border-t border-[var(--surface-inset)] hover:bg-[var(--surface-subtle)]/60"
                     data-testid={`intelligence-event-row-${evt.id ?? idx}`}
                   >
-                    <td className="px-5 py-3 font-medium text-[var(--text-primary)] min-w-0 max-w-[12rem] break-words">
+                    <td
+                      className="px-5 py-3 font-medium text-[var(--text-primary)] fw-name-cell"
+                      data-testid={`intelligence-event-region-${evt.id ?? idx}`}
+                    >
                       {evt.region}
                     </td>
                     <td className="px-5 py-3 hidden md:table-cell text-xs">
@@ -132,7 +135,7 @@ export default function ActiveIntelligenceEvents({
                         </div>
                       )}
                     </td>
-                    <td className="px-5 py-3 hidden lg:table-cell">
+                    <td className="px-5 py-3 hidden lg:table-cell min-w-[9rem]">
                       {insideAoi ? (
                         <StatusBadge variant="enabled" label={monitored?.name ?? "Inside AOI"} testId={`aoi-${evt.id}`} />
                       ) : (

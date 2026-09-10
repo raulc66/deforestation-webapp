@@ -538,7 +538,7 @@ function SummaryOverlay({ summary }) {
             <div className="text-[10px] text-[#7b827b] uppercase tracking-wider">
               Top signal
             </div>
-            <div className="text-xs font-semibold mt-0.5 break-words text-[#1a1e1a]">
+            <div className="text-xs font-semibold mt-0.5 fw-name text-[#1a1e1a]">
               {summary.highest_priority_region}
             </div>
             <div
@@ -750,7 +750,7 @@ function LayerControls({ layers, onToggle, demoMode = false }) {
                 style={{ background: color }}
                 aria-hidden="true"
               />
-              <span className="min-w-0 break-words">{visibleLabel}</span>
+              <span>{visibleLabel}</span>
             </label>
           );
         })}
@@ -993,7 +993,7 @@ export default function IntelligenceMap({
         <h2 className="text-2xl font-semibold tracking-tight mt-1 text-[var(--text-primary)]">
           Geospatial intelligence
         </h2>
-        <p className="text-sm text-[var(--text-muted)] mt-1 max-w-xl break-words">
+        <p className="text-sm text-[var(--text-muted)] mt-1 max-w-xl fw-name">
           {organizationName
             ? `${organizationName} monitored areas · regional intelligence context`
             : "Organization monitored areas · regional intelligence context"}

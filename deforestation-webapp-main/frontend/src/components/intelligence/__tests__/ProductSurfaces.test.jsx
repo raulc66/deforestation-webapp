@@ -116,6 +116,38 @@ describe("IntelligenceCommandCenter", () => {
     expect(screen.getByTestId("investigation-opened")).toBeInTheDocument();
     expect(screen.getByTestId("investigation-opened-copy")).toBeInTheDocument();
     expect(screen.getByTestId("disturbance-investigate-btn")).toHaveTextContent("Investigation open");
+    expect(screen.getByTestId("investigation-opened")).toHaveClass("scroll-mt-16");
+    expect(screen.getByTestId("command-center-queue-name-ie-1")).toHaveTextContent("Harghita");
+  });
+
+  it("gives long queue names word-wrapping space beside the priority badge", () => {
+    render(
+      <MemoryRouter>
+        <IntelligenceCommandCenter
+          monitoringStatus={MOCK_MONITORING}
+          commandCenter={{
+            intelligence_evidence: {
+              items: [
+                {
+                  ...MOCK_EVIDENCE_ITEM,
+                  region: "Maramureș Conservation Stand",
+                  monitored_area: {
+                    ...MOCK_EVIDENCE_ITEM.monitored_area,
+                    name: "Harghita Forest Reserve Working Block",
+                  },
+                },
+              ],
+            },
+          }}
+          events={{ active: [] }}
+          loading={false}
+        />
+      </MemoryRouter>
+    );
+    const name = screen.getByTestId("command-center-queue-name-ie-1");
+    expect(name).toHaveTextContent("Maramureș Conservation Stand");
+    expect(name).toHaveClass("fw-name");
+    expect(name.className).not.toMatch(/break-all|break-words/);
   });
 
   it("explains the next action when no forests are monitored", () => {

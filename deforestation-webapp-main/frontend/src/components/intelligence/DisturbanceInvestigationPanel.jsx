@@ -100,10 +100,12 @@ export default function DisturbanceInvestigationPanel({
       <div
         ref={panelRef}
         tabIndex={opened ? -1 : undefined}
-        className={opened ? "outline-none" : undefined}
+        className={opened ? "outline-none scroll-mt-16" : undefined}
         data-testid={opened ? "investigation-opened" : undefined}
       >
-      <div className="fw-kicker mb-2">{opened ? "Investigation open" : "Investigation focus"}</div>
+      <div className={`fw-kicker mb-2${opened ? " text-[var(--accent-strong)]" : ""}`}>
+        {opened ? "Investigation open" : "Investigation focus"}
+      </div>
       {opened && (
         <p
           className="mb-3 text-sm text-[var(--text-secondary)] leading-relaxed"
@@ -114,7 +116,7 @@ export default function DisturbanceInvestigationPanel({
           Satellite disturbance is not a legal finding.
         </p>
       )}
-      <h3 className="text-base font-bold tracking-tight text-[var(--text-primary)] leading-snug break-words">
+      <h3 className="text-base font-bold tracking-tight text-[var(--text-primary)] leading-snug fw-name">
         {assessment}
       </h3>
 
@@ -146,13 +148,13 @@ export default function DisturbanceInvestigationPanel({
               <dt className="fw-kicker flex items-center gap-1">
                 <MapPin className="w-3 h-3 shrink-0" /> Monitored area
               </dt>
-              <dd className="font-medium break-words">{monitored.name}</dd>
+              <dd className="font-medium fw-name">{monitored.name}</dd>
             </div>
           )}
           {item.region && (
             <div className="min-w-0">
               <dt className="fw-kicker">Region</dt>
-              <dd className="break-words">{item.region}</dd>
+              <dd className="fw-name">{item.region}</dd>
             </div>
           )}
         </dl>
