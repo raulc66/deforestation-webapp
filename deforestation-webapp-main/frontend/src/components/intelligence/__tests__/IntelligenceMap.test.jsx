@@ -3,7 +3,7 @@
  *
  * Coverage:
  *   Loading state       — overlay visible before API resolves
- *   Map rendering       — MapContainer and section always present
+ *   Map rendering       — Leaflet container and section always present
  *   Layer controls      — all three checkboxes, default state, toggle on/off
  *   Summary overlay     — counts, top-region, hidden when null
  *   Empty state         — map renders with no events / anomalies
@@ -35,32 +35,37 @@ jest.mock("leaflet.markercluster", () => ({}));
 // ---------------------------------------------------------------------------
 const mockAddLayer = jest.fn();
 const mockRemoveLayer = jest.fn();
+const mockMapRemove = jest.fn();
+const mockInvalidateSize = jest.fn();
+const mockTileAddTo = jest.fn();
 
-// ---------------------------------------------------------------------------
-// Mock react-leaflet — MapContainer just renders children in a div.
-// useMap returns a stable map stub so layer components can call addLayer.
-// ---------------------------------------------------------------------------
-jest.mock("react-leaflet", () => ({
-  MapContainer: ({ children }) => (
-    <div data-testid="map-container">{children}</div>
-  ),
-  TileLayer: () => null,
-  useMap: () => ({ addLayer: mockAddLayer, removeLayer: mockRemoveLayer }),
-}));
-
-// ---------------------------------------------------------------------------
-// Mock leaflet — circleMarker and markerClusterGroup are the only APIs used.
-// Note: implementations are set in beforeEach to survive mockClear cycles.
-// ---------------------------------------------------------------------------
-jest.mock("leaflet", () => ({
-  markerClusterGroup: jest.fn(),
-  circleMarker: jest.fn(),
-  marker: jest.fn(),
-  divIcon: jest.fn(),
-  geoJSON: jest.fn(() => ({
-    bindPopup: jest.fn(),
-  })),
-}));
+jest.mock("leaflet", () => {
+  const api = {
+    map: jest.fn(() => ({
+      addLayer: mockAddLayer,
+      removeLayer: mockRemoveLayer,
+      remove: mockMapRemove,
+      invalidateSize: mockInvalidateSize,
+    })),
+    tileLayer: jest.fn(() => ({ addTo: mockTileAddTo })),
+    markerClusterGroup: jest.fn(),
+    circleMarker: jest.fn(),
+    marker: jest.fn(),
+    divIcon: jest.fn(),
+    geoJSON: jest.fn(() => ({
+      bindPopup: jest.fn(),
+    })),
+    layerGroup: jest.fn(() => ({
+      addLayer: jest.fn(),
+      addTo: jest.fn(),
+    })),
+    control: {
+      zoom: jest.fn(() => ({ addTo: jest.fn() })),
+    },
+  };
+  api.default = api;
+  return api;
+});
 
 // ---------------------------------------------------------------------------
 // Mock API layer
@@ -247,8 +252,20 @@ beforeEach(() => {
   // Clear map stub call counts
   mockAddLayer.mockClear();
   mockRemoveLayer.mockClear();
+  mockMapRemove.mockClear();
+  mockInvalidateSize.mockClear();
+  mockTileAddTo.mockClear();
+  L.map.mockClear();
+  L.tileLayer.mockClear();
 
   // Re-apply Leaflet mock implementations every test (survives clearAllMocks)
+  L.map.mockImplementation(() => ({
+    addLayer: mockAddLayer,
+    removeLayer: mockRemoveLayer,
+    remove: mockMapRemove,
+    invalidateSize: mockInvalidateSize,
+  }));
+  L.tileLayer.mockImplementation(() => ({ addTo: mockTileAddTo }));
   L.circleMarker.mockImplementation(() => ({
     bindPopup: jest.fn().mockReturnThis(),
     addTo: jest.fn().mockReturnThis(),
@@ -312,11 +329,33 @@ describe("IntelligenceMap", () => {
       expect(screen.getByTestId("intelligence-map-section")).toBeInTheDocument();
     });
 
-    it("renders the MapContainer", async () => {
+    it("renders the Leaflet map container", async () => {
       setupMocks();
       render(<IntelligenceMap />);
       await waitForLoad();
-      expect(screen.getByTestId("map-container")).toBeInTheDocument();
+      expect(screen.getByTestId("leaflet-map")).toBeInTheDocument();
+    });
+
+    it("initializes Leaflet once with OSM tiles", async () => {
+      setupMocks();
+      render(<IntelligenceMap />);
+      await waitForLoad();
+      expect(L.map).toHaveBeenCalledTimes(1);
+      expect(L.tileLayer).toHaveBeenCalledWith(
+        "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+        expect.objectContaining({
+          attribution: expect.stringContaining("OpenStreetMap"),
+        })
+      );
+      expect(mockTileAddTo).toHaveBeenCalled();
+    });
+
+    it("removes the Leaflet map on unmount", async () => {
+      setupMocks();
+      const { unmount } = render(<IntelligenceMap />);
+      await waitForLoad();
+      unmount();
+      expect(mockMapRemove).toHaveBeenCalled();
     });
 
     it("renders the section heading text", async () => {
@@ -552,7 +591,7 @@ describe("IntelligenceMap", () => {
       });
       render(<IntelligenceMap />);
       await waitForLoad();
-      expect(screen.getByTestId("map-container")).toBeInTheDocument();
+      expect(screen.getByTestId("leaflet-map")).toBeInTheDocument();
     });
 
     it("renders legend with empty data", async () => {
@@ -612,7 +651,7 @@ describe("IntelligenceMap", () => {
       await waitFor(() =>
         expect(screen.getByTestId("map-error")).toBeInTheDocument()
       );
-      expect(screen.getByTestId("map-container")).toBeInTheDocument();
+      expect(screen.getByTestId("leaflet-map")).toBeInTheDocument();
     });
 
     it("error banner has role=alert for accessibility", async () => {

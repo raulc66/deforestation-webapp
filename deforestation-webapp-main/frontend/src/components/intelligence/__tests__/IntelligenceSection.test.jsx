@@ -2,7 +2,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import IntelligenceSection from "../IntelligenceSection";
 
-// Mock IntelligenceMap to prevent react-leaflet ESM from being parsed by Jest
+// Mock IntelligenceMap to keep this suite focused on section chrome
 jest.mock("../IntelligenceMap", () => () => (
   <div data-testid="intelligence-map-stub" />
 ));

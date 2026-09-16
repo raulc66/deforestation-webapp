@@ -38,10 +38,10 @@ describe("SalesPage", () => {
         <SalesPage />
       </MemoryRouter>
     );
-    expect(screen.getByTestId("license-developer")).toHaveTextContent("$349");
-    expect(screen.getByTestId("license-commercial")).toHaveTextContent("$899");
+    expect(screen.getByTestId("license-developer")).toHaveTextContent("$199");
+    expect(screen.getByTestId("license-commercial")).toHaveTextContent("$399");
     expect(screen.getByTestId("license-commercial")).toHaveTextContent(/Recommended/i);
-    expect(screen.getByTestId("license-agency")).toHaveTextContent("$1,799");
+    expect(screen.getByTestId("license-agency")).toHaveTextContent("$699");
     expect(screen.getByTestId("license-acquisition")).toHaveTextContent(/Contact/i);
   });
 
@@ -71,13 +71,36 @@ describe("SalesPage", () => {
     expect(document.documentElement.classList.contains("sales-root")).toBe(false);
   });
 
-  it("frames product surfaces as intentional previews rather than missing screenshots", () => {
+  it("shows real product screenshots in the product showcase", () => {
     render(
       <MemoryRouter>
         <SalesPage />
       </MemoryRouter>
     );
-    expect(screen.getAllByText("Interface preview").length).toBeGreaterThan(0);
+    expect(screen.queryByText("Interface preview")).not.toBeInTheDocument();
     expect(screen.queryByText("Screenshot placeholder")).not.toBeInTheDocument();
+    const commandCenter = screen.getByAltText(
+      "ForestWatch Command Center showing active intelligence events and monitored regions"
+    );
+    const map = screen.getByAltText(
+      "ForestWatch intelligence map showing monitored forest areas and geospatial overlays"
+    );
+    const investigation = screen.getByAltText(
+      "ForestWatch investigation view showing evidence and intelligence details"
+    );
+    const alerts = screen.getByAltText(
+      "ForestWatch alerts view showing demonstration policies and notification channels"
+    );
+    const landing = screen.getByAltText("ForestWatch commercial product landing page");
+    expect(commandCenter).toHaveAttribute("src", "/sales/forestwatch-command-center.png");
+    expect(map).toHaveAttribute("src", "/sales/forestwatch-intelligence-map.png");
+    expect(investigation).toHaveAttribute("src", "/sales/forestwatch-investigation.png");
+    expect(alerts).toHaveAttribute("src", "/sales/forestwatch-alerts.png");
+    expect(landing).toHaveAttribute("src", "/sales/forestwatch-sales-page.png");
+    expect(commandCenter).toHaveAttribute("loading", "eager");
+    expect(map).toHaveAttribute("loading", "lazy");
+    expect(investigation).toHaveAttribute("loading", "lazy");
+    expect(alerts).toHaveAttribute("loading", "lazy");
+    expect(landing).toHaveAttribute("loading", "lazy");
   });
 });

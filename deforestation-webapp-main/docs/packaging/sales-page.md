@@ -35,9 +35,9 @@ Do not add, without verification:
 
 | Tier | Price |
 |------|--------|
-| Developer | $349 |
-| Commercial | $899 (Recommended) |
-| Agency | $1,799 |
+| Developer | $199 |
+| Commercial | $399 (Recommended) |
+| Agency | $699 |
 | Acquisition | Contact |
 
 Checkout is **not** implemented. License CTAs read URLs from `COMMERCIAL` /
@@ -50,13 +50,28 @@ Rebuild the frontend after changing them (CRA inlines `REACT_APP_*` at build).
 
 ## Screenshots
 
-No product screenshots are vendored in this repository. The Product section uses
-labeled placeholders. To replace them:
+Product captures live in `frontend/public/sales/` and are served as `/sales/<file>.png`
+in production builds (Create React App copies `public/` to the site root).
 
-1. Capture Command Center, Intelligence Map, Investigation, Alert management,
-   and Monitored areas from a running demo (no fabricated UI).
-2. Store assets under `frontend/src/assets/sales/` (or `frontend/public/sales/`).
-3. Wire them in `frontend/src/components/sales/ProductShowcase.jsx` with alt text.
+| Showcase section | File | Notes |
+|------------------|------|--------|
+| Command Center | `frontend/public/sales/forestwatch-command-center.png` | Active Intelligence queue and monitoring status |
+| Intelligence Map | `frontend/public/sales/forestwatch-intelligence-map.png` | Monitored forests and geospatial overlays |
+| Investigation | `frontend/public/sales/forestwatch-investigation.png` | Investigation open, with evidence and intelligence details |
+| Alert management | `frontend/public/sales/forestwatch-alerts.png` | Demonstration alert policies and channel tabs |
+| Product landing | `frontend/public/sales/forestwatch-sales-page.png` | Commercial sales-page hero |
+
+The Product showcase is wired in `frontend/src/components/sales/ProductShowcase.jsx`.
+There is no dedicated trial-workspace screenshot in the current set; do not
+invent a placeholder for that surface.
+
+To replace a screenshot in a later version:
+
+1. Capture the running application (no fabricated UI).
+2. Overwrite the matching file under `frontend/public/sales/` (keep the filename, or
+   update `src`, `width`, `height`, `alt`, title, and caption in `ProductShowcase.jsx`
+   together).
+3. Preserve native aspect ratio in CSS (`object-fit: contain`; do not crop or stretch).
 4. Keep NOTICE / third-party screenshot rights in mind (map tiles, etc.).
 
 ## Launch checklist
@@ -65,6 +80,6 @@ labeled placeholders. To replace them:
 - [ ] Lemon Squeezy (or other) checkout URLs set and rebuilt
 - [ ] Acquisition contact URL is a real mailbox or form
 - [ ] Optional published docs URL (`REACT_APP_DOCS_URL`)
-- [ ] Real product screenshots replace placeholders
+- [x] Real product screenshots replace placeholders (see Screenshots)
 - [ ] `/explore` demo still starts
 - [ ] Frontend tests including `SalesPage.test.jsx` pass

@@ -9,9 +9,11 @@
 #   !name           keep even if an exclude pattern also matches (e.g. .env.example)
 
 .git
+.github
 .gitconfig
 .cursor
 .emergent
+/frontend/asset
 .env
 .env.*
 !.env.example

@@ -2,12 +2,18 @@ ForestWatch third-party notices
 ================================
 
 This file identifies major third-party software and data sources used by
-ForestWatch. It is not legal advice. License metadata below is taken from
-this repository's dependency lists and in-code provenance labels.
+ForestWatch. It is not legal advice. Software license identifiers below are
+copied from this repository's declared metadata (backend/requirements.txt
+and frontend/package-lock.json "license" fields) or, where the repository
+does not store a license field, marked as commonly published identifiers
+that still need confirmation against the installed package.
 
-VERIFY BEFORE DISTRIBUTION: confirm SPDX identifiers against the installed
-package versions and each provider's current terms before any commercial
-release.
+VERIFY BEFORE DISTRIBUTION: Python packages in this repository do not carry
+bundled LICENSE files. Confirm SPDX identifiers against the installed
+distributions. Confirm each provider's current terms before relying on
+live data or redistributing derived datasets. Lockfile "license" fields
+are the package author's declaration, not a review of the full license
+text inside each tarball.
 
 Original ForestWatch source is licensed separately. See LICENSE.
 
@@ -15,8 +21,9 @@ Original ForestWatch source is licensed separately. See LICENSE.
 Software (Python — backend/requirements.txt)
 --------------------------------------------
 
-The following packages are declared. Common published licenses are noted
-where generally known; VERIFY BEFORE DISTRIBUTION.
+Declared versions/ranges from backend/requirements.txt. License identifiers
+below are commonly published for these packages; they are not copied from
+files in this repository.
 
   fastapi==0.110.1              MIT (commonly)
   uvicorn==0.25.0               BSD-3-Clause (commonly)
@@ -35,11 +42,17 @@ where generally known; VERIFY BEFORE DISTRIBUTION.
   email-validator>=2.2.0        MIT (commonly)
   python-multipart>=0.0.9       Apache-2.0 (commonly)
   tzdata>=2024.2                Apache-2.0 (commonly)
+  pandas>=2.2.0                 BSD (commonly)
+                                First-party import: backend/app/modules/ingestion/providers/eea_aq_parquet.py
 
-Listed in requirements.txt; docs/DEPENDENCIES.md reports no first-party
-imports in backend application code (VERIFY BEFORE DISTRIBUTION):
+Also declared in requirements.txt. First-party import scan of backend/app
+found no direct import:
 
-  boto3, requests-oauthlib, python-jose, pandas, pyarrow, numpy, jq, typer
+  boto3, requests-oauthlib, python-jose, numpy, jq, typer
+
+pyarrow>=15.0.0 is declared. There is no `import pyarrow` in backend/app.
+pandas.read_parquet is called in eea_aq_parquet.py. pyarrow is listed in
+requirements.txt alongside pandas.
 
 Development/test tooling listed in the same file:
 
@@ -49,43 +62,75 @@ Development/test tooling listed in the same file:
 Software (npm — frontend/package.json)
 --------------------------------------
 
-VERIFY BEFORE DISTRIBUTION: generate a full license inventory from
-package-lock.json (Create React App has a large transitive tree).
+License identifiers for the packages below are the "license" field in
+frontend/package-lock.json for the locked version. This is not a full
+inventory of Create React App's transitive tree.
 
-Direct runtime packages include:
-
-  react, react-dom              MIT (commonly)
-  react-router-dom              MIT (commonly)
-  axios                         MIT (commonly)
-  leaflet, react-leaflet        BSD-2-Clause (commonly)
-  leaflet.markercluster         MIT (commonly)
-  lucide-react                  ISC (commonly)
-  recharts                      MIT (commonly)
-  @radix-ui/*                   MIT (commonly)
-  tailwindcss and related       MIT (commonly)
-  react-scripts / CRA           MIT (commonly) plus transitive licenses
-  zod, react-hook-form          MIT (commonly)
+  react@19.0.0                  MIT
+  react-dom@19.0.0              MIT
+  react-router-dom@7.5.1        MIT
+  axios@1.8.4                   MIT
+  leaflet@1.9.4                 BSD-2-Clause
+  leaflet.markercluster@1.5.3   MIT
+  lucide-react@0.516.0          ISC
+  recharts@3.6.0                MIT
+  @radix-ui/* (locked)          MIT (sample entries in package-lock.json)
+  tailwindcss@3.4.17            MIT
+  react-scripts@5.0.1           MIT plus transitive licenses
+  zod@3.24.4                    MIT
+  react-hook-form@7.56.2        MIT
 
 MongoDB
 -------
 
 ForestWatch uses the Motor/PyMongo drivers to talk to a MongoDB server that
 the licensee operates. MongoDB Server is a separate product with its own
-license (SSPL for current MongoDB Inc. builds, or another distribution the
-licensee chooses). This package does not grant a MongoDB Server license.
+license (the licensee chooses the server distribution). This package does
+not grant a MongoDB Server license.
+
+Docker Compose (docker-compose.yml, docker/*) pulls mongo:7 as a runtime
+image. That image is not original ForestWatch source.
 
 
 Fonts
 -----
 
-frontend/src/index.css loads Manrope, IBM Plex Sans, and IBM Plex Mono from
-the Google Fonts CDN at runtime. Files are not vendored in this repository.
+frontend/public/index.html loads Manrope, IBM Plex Sans, and IBM Plex Mono
+from the Google Fonts CDN at runtime (`fonts.googleapis.com` stylesheet
+link). Font files are not vendored in this repository. CSS files only
+reference the family names.
 
   Manrope                       SIL Open Font License (commonly)
   IBM Plex Sans / Mono          SIL Open Font License (commonly)
 
-VERIFY BEFORE DISTRIBUTION. Offline or air-gapped deployments should vendor
-the fonts and retain their OFL notices.
+VERIFY BEFORE DISTRIBUTION. Confirm current Google Fonts / OFL terms.
+Offline or air-gapped deployments should vendor the fonts and retain
+their OFL notices.
+
+
+Map tiles (runtime, not vendored)
+---------------------------------
+
+IntelligenceMap and MapPage load raster tiles from
+`{s}.tile.openstreetmap.org` and include the in-code attribution
+"OpenStreetMap contributors". Product-showcase copy states that map tiles
+remain third-party. Tiles are not stored in this repository.
+
+VERIFY BEFORE DISTRIBUTION: OpenStreetMap / tile-usage terms are not
+stored in this repository.
+
+
+Container images used by Docker Compose
+---------------------------------------
+
+Named in docker/backend.Dockerfile, docker/frontend.Dockerfile, and
+docker-compose.yml. These images are not original ForestWatch source and
+are not licensed by LICENSE.
+
+  python:3.11-slim-bookworm     backend image
+  node:20-bookworm-slim         frontend build stage
+  nginx:1.27-alpine             frontend runtime
+  mongo:7                       database service
 
 
 Data sources and provider terms
@@ -93,49 +138,96 @@ Data sources and provider terms
 
 In-code labels (not a substitute for the provider's current legal text):
 
-  Copernicus Land Monitoring Service / CORINE
-    backend/app/data/gis/romania_corine_simplified.geojson
-    backend/app/services/clms_context_provider.py
-    Label: "Copernicus Land Monitoring Service Terms"
-    The bundled GeoJSON is a simplified Romania reference derived from CLC
-    2018-class metadata. It is not an official full-resolution CLC export.
-    VERIFY BEFORE DISTRIBUTION: Copernicus licence typically requires
-    attribution for commercial use of Copernicus products and derivatives.
+  Copernicus Land Monitoring Service / CORINE Land Cover (CLC)
+    Bundled file: backend/app/data/gis/romania_corine_simplified.geojson
+    Related code: backend/app/services/clms_context_provider.py,
+    backend/app/services/gis_loader.py
+    In-code label: "Copernicus Land Monitoring Service Terms"
+
+    Repository evidence for the bundled file (collection properties):
+      source: "Copernicus Land Monitoring Service"
+      version: "2018-Romania-Simplified-v1"
+      last_updated: "2024-01-01"
+      classification_system: "CORINE Land Cover (CLC)"
+      coverage: "Romania"
+      crs: "EPSG:4326"
+      description: "Simplified Romania land cover zones derived from
+        Copernicus/CORINE CLC 2018. Replace this file with the official
+        CLC 2018 GeoJSON export for full resolution data."
+    gis_loader.py describes the same file as a ~50-polygon approximation
+    derived from CORINE CLC 2018. The current file contains 52 Polygon
+    features. CLC class codes present include 112, 211, 213, 311, 312,
+    321, 322, 323, 511, 512, and 521. Features also carry ForestWatch
+    properties (label, land_cover_type, confidence).
+
+    Classification: adapted / derived work based on CLMS information,
+    not an unmodified CLMS redistribution.
+
+    Transformations documented in this repository: simplification /
+    approximation of CLC 2018-class Romania land-cover zones stored as
+    GeoJSON. This repository does not contain a generation script, an
+    original CLMS download URL, or a dataset DOI.
+
+    Attribution (adapted / derived product):
+      Generated using European Union's Copernicus Land Monitoring Service
+      information. Source product identified in this repository: CORINE
+      Land Cover (CLC) 2018, Romania coverage.
+      The bundled GeoJSON has been simplified and approximated and is
+      not an official full-resolution CLC export.
+      ForestWatch is not endorsed by the European Union or Copernicus.
+      No dataset DOI is recorded in this repository.
+
+    Bundled in the source tree: yes (simplified GeoJSON).
 
   NASA FIRMS
     backend/app/modules/ingestion/providers/firms.py
     Label: "NASA FIRMS open data policy"
-    Live use requires the licensee's FIRMS_API_KEY. Empty key uses a bundled
-    mock dataset for development.
+    Live use requires the licensee's FIRMS_API_KEY. Empty key uses a
+    bundled mock dataset that mirrors FIRMS CSV format for development
+    (not a live FIRMS extract).
+    Bundled: integration code plus mock rows. Live FIRMS data is not
+    vendored.
+    VERIFY BEFORE DISTRIBUTION: confirm current FIRMS terms for live use.
 
   Global Forest Watch
     backend/app/modules/ingestion/providers/gfw_integrated_alerts_constants.py
     Label: "Global Forest Watch data policy — attribution required"
     Live use is opt-in (ENABLE_FOREST_DISTURBANCE) and requires GFW_API_KEY.
+    Bundled: integration code only. Live GFW alerts are not vendored.
+    VERIFY BEFORE DISTRIBUTION: confirm current GFW terms for live use.
 
   EEA Air Quality
     backend/app/modules/ingestion/providers/eea_air_quality.py
     Label: "EEA standard data policy — free and open for public use"
     Opt-in (ENABLE_EEA_AIR_QUALITY). Token optional depending on EEA access.
+    Bundled: integration code only.
+    VERIFY BEFORE DISTRIBUTION: confirm current EEA terms for live use.
 
   Copernicus EMS Rapid Mapping
     backend/app/modules/ingestion/providers/cems_rapid_mapping.py
     Label: "Copernicus data policy — free and open; attribution EMS/EU"
     Opt-in (ENABLE_CEMS_RAPID_MAPPING).
+    Bundled: integration code only.
+    VERIFY BEFORE DISTRIBUTION: confirm current CEMS terms for live use.
 
   EFFIS
     backend/app/modules/ingestion/providers/effis_constants.py
     Label: "Copernicus/EFFIS EU data policy — free and open; attribution required"
     Opt-in (ENABLE_EFFIS_WILDFIRE_CONTEXT / ENABLE_EFFIS_LIVE).
+    Bundled: integration code only.
+    VERIFY BEFORE DISTRIBUTION: confirm current EFFIS terms for live use.
 
   Open-Meteo
     backend/app/services/source_intelligence_service.py
     Label: "Open-Meteo free API — https://open-meteo.com"
-    No API key in this package. Attribution still required by provider terms.
+    No API key in this package.
+    Bundled: integration code only. Weather payloads are fetched at runtime.
+    VERIFY BEFORE DISTRIBUTION: confirm current Open-Meteo terms and
+    attribution for production use.
 
   Stripe
     The stripe Python SDK is a dependency. Stripe accounts, API keys, and
-    Customer data belong to the licensee. Billing is disabled by default
+    customer data belong to the licensee. Billing is disabled by default
     (ENABLE_BILLING=false) and has not been validated against a live Stripe
     account as part of this package.
 
@@ -144,5 +236,6 @@ Suggested attribution (operators)
 ---------------------------------
 
 When redistributing or publicly deploying, retain this NOTICE and attribute
-Copernicus, NASA FIRMS, Global Forest Watch, EEA, EFFIS/CEMS, and Open-Meteo
-as applicable to the integrations you enable.
+Copernicus (including the adapted CLC 2018 Romania GeoJSON above), NASA
+FIRMS, Global Forest Watch, EEA, EFFIS/CEMS, Open-Meteo, and OpenStreetMap
+as applicable to the integrations and map tiles you enable.

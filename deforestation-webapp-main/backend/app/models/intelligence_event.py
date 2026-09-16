@@ -12,6 +12,8 @@ Canonical field mapping (ADR-008, WP1.2):
                  current_score, previous_score
   Evidence     → metadata
 """
+from __future__ import annotations
+
 from datetime import datetime
 from typing import Any
 

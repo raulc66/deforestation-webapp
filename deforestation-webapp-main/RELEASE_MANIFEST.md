@@ -5,7 +5,7 @@
 | Product | ForestWatch Geospatial Intelligence Platform |
 | Artifact | commercially licensed source-code package |
 | Version | v1.0.0 |
-| Date | 2026-09-02 |
+| Date | 2026-09-16 |
 | Archive name | `forestwatch-source-v1.0.0.zip` |
 
 This file describes the zip a buyer receives. It does not replace [README.md](README.md) or [LICENSE](LICENSE).

@@ -210,8 +210,7 @@ export default function SalesPage() {
           <h2>The reference application is the forest-monitoring product.</h2>
           <p className="sales-prose" style={{ marginTop: "1rem", marginBottom: "1.75rem" }}>
             Command Center, map, investigation, alerts, and monitored areas are
-            implemented screens. Captures of those screens belong here once supplied;
-            they are not fabricated below.
+            implemented screens. Captures below are from the running application.
           </p>
           <ProductShowcase />
         </section>

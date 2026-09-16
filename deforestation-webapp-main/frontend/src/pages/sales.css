@@ -347,7 +347,7 @@
 
 @media (min-width: 800px) {
   .sales-frames {
-    grid-template-columns: 1.4fr 1fr;
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
   }
 
   .sales-frames .sales-frame:first-child {
@@ -358,42 +358,31 @@
 .sales-frame {
   border: 1px solid var(--sales-line);
   background: var(--sales-bg-raised);
-  min-height: 11rem;
+  min-width: 0;
   padding: 1rem;
   display: flex;
   flex-direction: column;
 }
 
-.sales-frame-label {
-  font-family: "IBM Plex Mono", monospace;
-  font-size: 0.68rem;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--sales-faint);
-}
-
 .sales-frame-title {
   font-family: "Manrope", system-ui, sans-serif;
   font-weight: 700;
-  margin-top: 0.35rem;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 
-.sales-wire {
-  margin-top: auto;
-  padding-top: 1rem;
-  display: grid;
-  gap: 0.4rem;
+.sales-frame-media {
+  margin-top: 1rem;
+  min-width: 0;
+  background: #121512;
+  border: 1px solid var(--sales-line);
 }
 
-.sales-wire-bar {
-  height: 0.45rem;
-  background: #2a302a;
-}
-
-.sales-wire-panel {
-  height: 4.5rem;
-  border: 1px dashed var(--sales-line);
+.sales-frame-media img {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-width: 100%;
+  object-fit: contain;
 }
 
 .sales-note {

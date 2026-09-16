@@ -26,20 +26,20 @@ export const COMMERCIAL = {
   developer: {
     id: "developer",
     name: "Developer",
-    price: "$349",
+    price: "$199",
     purchaseUrl: fromEnv("REACT_APP_PURCHASE_DEVELOPER_URL", "#licenses"),
   },
   commercial: {
     id: "commercial",
     name: "Commercial",
-    price: "$899",
+    price: "$399",
     recommended: true,
     purchaseUrl: fromEnv("REACT_APP_PURCHASE_COMMERCIAL_URL", "#licenses"),
   },
   agency: {
     id: "agency",
     name: "Agency",
-    price: "$1,799",
+    price: "$699",
     purchaseUrl: fromEnv("REACT_APP_PURCHASE_AGENCY_URL", "#licenses"),
   },
   acquisition: {

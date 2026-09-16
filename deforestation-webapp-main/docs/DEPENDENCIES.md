@@ -61,7 +61,7 @@ Usage verified by import analysis unless marked **listed only**.
 | `@craco/craco` | CRA config override | `craco.config.js`, scripts |
 | `react-router-dom` | Client routing | `App.js`, pages |
 | `axios` | HTTP client | `lib/api.js` |
-| `leaflet`, `react-leaflet` | Maps | `MapPage`, `IntelligenceMap` |
+| `leaflet` | Maps (direct Leaflet) | `MapPage`, `IntelligenceMap`, `lib/useLeafletMap.js` |
 | `leaflet.markercluster` | Map clustering | `IntelligenceMap` |
 | `recharts` | Charts | Dashboard analytics components |
 | `lucide-react` | Icons | Throughout UI |

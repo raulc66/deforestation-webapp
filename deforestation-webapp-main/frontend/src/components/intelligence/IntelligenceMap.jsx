@@ -7,16 +7,15 @@
  *   3. Intelligence     — CircleMarkers colored by priority_score (from /api/analytics/intelligence/events)
  *
  * All marker layers are rendered imperatively via leaflet.markercluster so
- * clusters form automatically without re-rendering the React tree.  The three
- * sub-components (ForestEventsLayer, AnomaliesLayer, IntelligenceEventsLayer)
- * must live inside <MapContainer> because they call useMap().
+ * clusters form automatically without re-rendering the React tree. Layer
+ * components receive the Leaflet map instance from useLeafletMap().
  *
  * A floating summary panel is positioned absolute over the map wrapper and
  * shows live counts from /api/analytics/intelligence/events/summary.
  */
-import { useState, useEffect, useCallback, useMemo } from "react";
-import { MapContainer, TileLayer, useMap } from "react-leaflet";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import L from "leaflet";
+import { useLeafletMap } from "@/lib/useLeafletMap";
 import "leaflet/dist/leaflet.css";
 import "leaflet.markercluster";
 import "leaflet.markercluster/dist/MarkerCluster.css";
@@ -325,7 +324,7 @@ function intelligencePopup(evt, threat, evidenceItem) {
 }
 
 // ---------------------------------------------------------------------------
-// Layer sub-components — must be rendered inside <MapContainer>
+// Layer sub-components — receive the Leaflet map instance as a prop
 // ---------------------------------------------------------------------------
 
 /**
@@ -334,11 +333,9 @@ function intelligencePopup(evt, threat, evidenceItem) {
  * Fill color: severity. Border color: land cover type.
  * Filtered client-side by the landCoverFilter prop (no extra API requests).
  */
-function ForestEventsLayer({ events, visible, landCoverFilter }) {
-  const map = useMap();
-
+function ForestEventsLayer({ map, events, visible, landCoverFilter }) {
   useEffect(() => {
-    if (!visible || !events.length) return;
+    if (!map || !visible || !events.length) return;
 
     // Active land-cover types (those checked in the filter panel).
     const activeTypes = Object.keys(landCoverFilter).filter(
@@ -385,11 +382,9 @@ function ForestEventsLayer({ events, visible, landCoverFilter }) {
  * Renders anomaly CircleMarkers whose radius scales with anomaly_score.
  * Coordinates are resolved from the ROMANIA_REGION_COORDS lookup.
  */
-function AnomaliesLayer({ anomalies, visible, geographicScope }) {
-  const map = useMap();
-
+function AnomaliesLayer({ map, anomalies, visible, geographicScope }) {
   useEffect(() => {
-    if (!visible || !anomalies.length) return;
+    if (!map || !visible || !anomalies.length) return;
 
     const cluster = L.markerClusterGroup({ chunkedLoading: true });
     anomalies.forEach((a) => {
@@ -424,11 +419,9 @@ function AnomaliesLayer({ anomalies, visible, geographicScope }) {
  * Renders active intelligence event CircleMarkers colored by priority_score.
  * Coordinates are resolved from the ROMANIA_REGION_COORDS lookup.
  */
-function IntelligenceEventsLayer({ events, visible, threatByEventId, geographicScope, evidenceByEventId }) {
-  const map = useMap();
-
+function IntelligenceEventsLayer({ map, events, visible, threatByEventId, geographicScope, evidenceByEventId }) {
   useEffect(() => {
-    if (!visible || !events.length) return;
+    if (!map || !visible || !events.length) return;
 
     const cluster = L.markerClusterGroup({ chunkedLoading: true });
     events.forEach((evt) => {
@@ -456,11 +449,9 @@ function IntelligenceEventsLayer({ events, visible, threatByEventId, geographicS
   return null;
 }
 
-function MonitoredAreasLayer({ areas, visible }) {
-  const map = useMap();
-
+function MonitoredAreasLayer({ map, areas, visible }) {
   useEffect(() => {
-    if (!visible || !areas?.length) return;
+    if (!map || !visible || !areas?.length) return;
 
     const layers = areas.map((area) => {
       const layer = L.geoJSON(
@@ -493,7 +484,7 @@ function MonitoredAreasLayer({ areas, visible }) {
 }
 
 // ---------------------------------------------------------------------------
-// Floating summary overlay (rendered outside MapContainer)
+// Floating summary overlay (rendered outside the Leaflet container)
 // ---------------------------------------------------------------------------
 
 function SummaryOverlay({ summary }) {
@@ -572,11 +563,9 @@ function SummaryOverlay({ summary }) {
  *   Moderate → yellow (#eab308)
  *   Low     → green (#22c55e)
  */
-function RiskOverlayLayer({ riskRegions, visible }) {
-  const map = useMap();
-
+function RiskOverlayLayer({ map, riskRegions, visible }) {
   useEffect(() => {
-    if (!visible || !riskRegions || riskRegions.length === 0) return;
+    if (!map || !visible || !riskRegions || riskRegions.length === 0) return;
 
     const markers = [];
     riskRegions.forEach((r) => {
@@ -626,11 +615,9 @@ function RiskOverlayLayer({ riskRegions, visible }) {
  * Both operate independently from the risk overlay — toggling one has no
  * effect on the other.
  */
-function WeatherOverlayLayer({ weatherRegions, visible }) {
-  const map = useMap();
-
+function WeatherOverlayLayer({ map, weatherRegions, visible }) {
   useEffect(() => {
-    if (!visible || !weatherRegions || weatherRegions.length === 0) return;
+    if (!map || !visible || !weatherRegions || weatherRegions.length === 0) return;
 
     const markers = [];
 
@@ -855,6 +842,12 @@ export default function IntelligenceMap({
   catalogEpoch = 0,
 }) {
   const { selectedOrgId, organizationVersion } = useOrganization();
+  const mapElRef = useRef(null);
+  const map = useLeafletMap(mapElRef, {
+    center: ROMANIA_CENTER,
+    zoom: DEFAULT_ZOOM,
+    scrollWheelZoom: true,
+  });
   const [mapEvents, setMapEvents] = useState([]);
   const [anomalies, setAnomalies] = useState([]);
   const [geographicScope, setGeographicScope] = useState("romania");
@@ -1037,47 +1030,50 @@ export default function IntelligenceMap({
           </div>
         )}
 
-        <MapContainer
-          center={ROMANIA_CENTER}
-          zoom={DEFAULT_ZOOM}
-          scrollWheelZoom
-          style={{ height: "min(520px, 70vh)", minHeight: "280px", width: "100%" }}
+        <div
+          ref={mapElRef}
           data-testid="leaflet-map"
-        >
-          <TileLayer
-            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          />
-          <ForestEventsLayer
-            events={filteredMapEvents}
-            visible={layers.events}
-            landCoverFilter={landCoverFilter}
-          />
-          <AnomaliesLayer
-            anomalies={anomalies}
-            visible={layers.anomalies}
-            geographicScope={geographicScope}
-          />
-          <IntelligenceEventsLayer
-            events={activeIntelEvents}
-            visible={layers.intelligence}
-            threatByEventId={threatByEventId}
-            geographicScope={geographicScope}
-            evidenceByEventId={evidenceByEventId}
-          />
-          <MonitoredAreasLayer
-            areas={monitoredAreas}
-            visible={layers.monitored_areas}
-          />
-          <RiskOverlayLayer
-            riskRegions={riskData?.regions ?? []}
-            visible={layers.risk_overlay}
-          />
-          <WeatherOverlayLayer
-            weatherRegions={weatherData?.regions ?? []}
-            visible={layers.weather_overlay}
-          />
-        </MapContainer>
+          style={{ height: "min(520px, 70vh)", minHeight: "280px", width: "100%" }}
+        />
+        {map ? (
+          <>
+            <ForestEventsLayer
+              map={map}
+              events={filteredMapEvents}
+              visible={layers.events}
+              landCoverFilter={landCoverFilter}
+            />
+            <AnomaliesLayer
+              map={map}
+              anomalies={anomalies}
+              visible={layers.anomalies}
+              geographicScope={geographicScope}
+            />
+            <IntelligenceEventsLayer
+              map={map}
+              events={activeIntelEvents}
+              visible={layers.intelligence}
+              threatByEventId={threatByEventId}
+              geographicScope={geographicScope}
+              evidenceByEventId={evidenceByEventId}
+            />
+            <MonitoredAreasLayer
+              map={map}
+              areas={monitoredAreas}
+              visible={layers.monitored_areas}
+            />
+            <RiskOverlayLayer
+              map={map}
+              riskRegions={riskData?.regions ?? []}
+              visible={layers.risk_overlay}
+            />
+            <WeatherOverlayLayer
+              map={map}
+              weatherRegions={weatherData?.regions ?? []}
+              visible={layers.weather_overlay}
+            />
+          </>
+        ) : null}
 
         {/* Floating intelligence summary */}
         <SummaryOverlay summary={summary} />

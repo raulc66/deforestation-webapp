@@ -22,7 +22,8 @@ Listed in `scripts/release-exclusions.txt`:
 - Mongo data, `dist/`, `build/`, coverage
 - `.gitconfig` (developer identity)
 - IDE folders `.idea/`, `.vscode/`
-- `.emergent/`, root `test_result.md`, empty root `tests/` (agent/scaffold leftovers)
+- `.emergent/`, `.github/`, root `test_result.md`, empty root `tests/` (agent/scaffold leftovers)
+- staging screenshot drop `frontend/asset/` (production captures live in `frontend/public/sales/`)
 
 ## Create a zip (Windows)
 

@@ -31,7 +31,7 @@ Do not strip this layer to “genericize” the product.
 - `backend/app/core/geography/romania.py`, default `GEOGRAPHIC_SCOPE=romania`
 - `backend/app/services/romania_seed_service.py`
 - `backend/app/core/demo/catalog.py` (Harghita / Suceava / Maramureș)
-- `backend/app/data/gis/romania_corine_simplified.geojson` (simplified CLC-derived reference)
+- `backend/app/data/gis/romania_corine_simplified.geojson` — simplified Romania land-cover reference derived from Copernicus/CORINE CLC 2018 (adapted/modified CLMS information; not an official full-resolution CLC export; not EU/Copernicus-endorsed). Attribution: root `NOTICE`.
 
 ## Development / testing assets (included)
 

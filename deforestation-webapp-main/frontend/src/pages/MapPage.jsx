@@ -1,11 +1,12 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, Navigate } from "react-router-dom";
-import { MapContainer, TileLayer, CircleMarker, Popup, ZoomControl } from "react-leaflet";
+import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import AppLayout from "@/components/layout/AppLayout";
 import { api } from "@/lib/api";
 import { Filter } from "lucide-react";
 import { useDemo } from "@/context/DemoContext";
+import { useLeafletMap } from "@/lib/useLeafletMap";
 
 const severityColor = {
   low: "#e9c46a",
@@ -23,8 +24,74 @@ const severityRadius = {
 
 const SEVERITIES = ["low", "medium", "high", "critical"];
 
+function appendLabeledValue(parent, label, value, valueClassName) {
+  const cell = document.createElement("div");
+  const lab = document.createElement("div");
+  lab.className = "text-[#7b827b]";
+  lab.textContent = label;
+  const val = document.createElement("div");
+  val.className = valueClassName;
+  val.textContent = value;
+  cell.appendChild(lab);
+  cell.appendChild(val);
+  parent.appendChild(cell);
+}
+
+/** Build MapPage alert popups as DOM nodes (no HTML string interpolation). */
+function buildAlertPopupContent(alert) {
+  const root = document.createElement("div");
+  root.className = "font-sans";
+
+  const severity = document.createElement("div");
+  severity.className =
+    "text-[10px] tracking-[0.2em] uppercase font-bold text-[#7b827b] mb-1";
+  severity.textContent = String(alert.severity ?? "");
+  root.appendChild(severity);
+
+  const title = document.createElement("div");
+  title.className = "font-bold text-[15px] leading-tight mb-1";
+  title.textContent = String(alert.title ?? "");
+  root.appendChild(title);
+
+  const place = document.createElement("div");
+  place.className = "text-xs text-[#4a524a] mb-2";
+  place.textContent = `${alert.region ?? ""}, ${alert.country ?? ""}`;
+  root.appendChild(place);
+
+  const grid = document.createElement("div");
+  grid.className = "grid grid-cols-2 gap-2 text-xs";
+
+  const areaHa =
+    typeof alert.area_ha === "number" ? alert.area_ha.toLocaleString() : "—";
+  const confidencePct =
+    typeof alert.confidence === "number"
+      ? `${(alert.confidence * 100).toFixed(0)}%`
+      : "—";
+
+  appendLabeledValue(grid, "Area", `${areaHa} ha`, "font-mono font-semibold");
+  appendLabeledValue(grid, "Confidence", confidencePct, "font-mono font-semibold");
+  appendLabeledValue(grid, "Source", String(alert.source ?? ""), "font-semibold");
+  appendLabeledValue(
+    grid,
+    "Status",
+    String(alert.status ?? ""),
+    "font-semibold capitalize"
+  );
+
+  root.appendChild(grid);
+  return root;
+}
+
 export default function MapPage() {
   const { isDemo } = useDemo();
+  const mapElRef = useRef(null);
+  const map = useLeafletMap(mapElRef, {
+    center: [-3.5, -60],
+    zoom: 3,
+    scrollWheelZoom: true,
+    zoomControl: false,
+    zoomControlPosition: "bottomright",
+  });
   const [alerts, setAlerts] = useState([]);
   const [filters, setFilters] = useState(new Set(SEVERITIES));
   const [loading, setLoading] = useState(true);
@@ -50,6 +117,30 @@ export default function MapPage() {
     [alerts, filters]
   );
 
+  useEffect(() => {
+    if (!map) return undefined;
+    const group = L.layerGroup();
+    visible.forEach((a) => {
+      const lat = a?.location?.lat;
+      const lng = a?.location?.lng;
+      if (typeof lat !== "number" || typeof lng !== "number") return;
+      const color = severityColor[a.severity];
+      const marker = L.circleMarker([lat, lng], {
+        radius: severityRadius[a.severity],
+        color,
+        fillColor: color,
+        fillOpacity: 0.55,
+        weight: 2,
+      });
+      marker.bindPopup(buildAlertPopupContent(a));
+      group.addLayer(marker);
+    });
+    group.addTo(map);
+    return () => {
+      map.removeLayer(group);
+    };
+  }, [map, visible]);
+
   if (isDemo) {
     return <Navigate to="/dashboard" replace />;
   }
@@ -73,68 +164,11 @@ export default function MapPage() {
       <div className="relative h-screen md:h-screen" data-testid="map-page">
         {/* Map */}
         <div className="absolute inset-0">
-          <MapContainer
-            center={[-3.5, -60]}
-            zoom={3}
-            scrollWheelZoom
-            zoomControl={false}
+          <div
+            ref={mapElRef}
             className="w-full h-full"
-          >
-            <TileLayer
-              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-            />
-            <ZoomControl position="bottomright" />
-            {visible.map((a) => (
-              <CircleMarker
-                key={a.id}
-                center={[a.location.lat, a.location.lng]}
-                radius={severityRadius[a.severity]}
-                pathOptions={{
-                  color: severityColor[a.severity],
-                  fillColor: severityColor[a.severity],
-                  fillOpacity: 0.55,
-                  weight: 2,
-                }}
-              >
-                <Popup>
-                  <div className="font-sans">
-                    <div className="text-[10px] tracking-[0.2em] uppercase font-bold text-[#7b827b] mb-1">
-                      {a.severity}
-                    </div>
-                    <div className="font-bold text-[15px] leading-tight mb-1">
-                      {a.title}
-                    </div>
-                    <div className="text-xs text-[#4a524a] mb-2">
-                      {a.region}, {a.country}
-                    </div>
-                    <div className="grid grid-cols-2 gap-2 text-xs">
-                      <div>
-                        <div className="text-[#7b827b]">Area</div>
-                        <div className="font-mono font-semibold">
-                          {a.area_ha.toLocaleString()} ha
-                        </div>
-                      </div>
-                      <div>
-                        <div className="text-[#7b827b]">Confidence</div>
-                        <div className="font-mono font-semibold">
-                          {(a.confidence * 100).toFixed(0)}%
-                        </div>
-                      </div>
-                      <div>
-                        <div className="text-[#7b827b]">Source</div>
-                        <div className="font-semibold">{a.source}</div>
-                      </div>
-                      <div>
-                        <div className="text-[#7b827b]">Status</div>
-                        <div className="font-semibold capitalize">{a.status}</div>
-                      </div>
-                    </div>
-                  </div>
-                </Popup>
-              </CircleMarker>
-            ))}
-          </MapContainer>
+            data-testid="leaflet-map"
+          />
         </div>
 
         {/* Glass header */}
