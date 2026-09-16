@@ -328,6 +328,20 @@ html:not(.sales-root) [tabindex]:focus-visible {
     font-family: "IBM Plex Sans", sans-serif !important;
 }
 
+.leaflet-popup.fw-aoi-popup .leaflet-popup-content {
+    min-width: 11rem;
+    overflow-wrap: break-word;
+    word-break: normal;
+    hyphens: none;
+}
+
+.fw-aoi-popup-name {
+    display: block;
+    overflow-wrap: break-word;
+    word-break: normal;
+    hyphens: none;
+}
+
 .severity-dot {
     width: 0.625rem;
     height: 0.625rem;

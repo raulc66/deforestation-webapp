@@ -1324,6 +1324,47 @@ describe("IntelligenceMap", () => {
       expect(screen.queryByTestId("layer-toggle-events")).not.toBeInTheDocument();
     });
 
+    it("binds monitored-area popups with word-wrapping names", async () => {
+      const bindPopup = jest.fn().mockReturnThis();
+      L.geoJSON.mockImplementation(() => ({
+        bindPopup,
+        addTo: jest.fn().mockReturnThis(),
+      }));
+      fetchMapOverlay.mockResolvedValue({
+        ...MOCK_OVERLAY,
+        monitored_areas: [
+          {
+            id: "a1",
+            name: "Harghita Forest Reserve",
+            geometry: {
+              type: "Polygon",
+              coordinates: [[[25.5, 46.8], [26.5, 46.8], [26.5, 47.5], [25.5, 47.5], [25.5, 46.8]]],
+            },
+          },
+          {
+            id: "a2",
+            name: "Maramureș Conservation Stand",
+            geometry: {
+              type: "Polygon",
+              coordinates: [[[24.5, 47.6], [25.5, 47.6], [25.5, 47.9], [24.5, 47.9], [24.5, 47.6]]],
+            },
+          },
+        ],
+      });
+      render(<IntelligenceMap demoMode />);
+      await waitForLoad();
+      expect(bindPopup).toHaveBeenCalledTimes(2);
+      expect(bindPopup).toHaveBeenCalledWith(
+        expect.stringContaining("Harghita Forest Reserve"),
+        expect.objectContaining({ minWidth: 176, maxWidth: 280, className: "fw-aoi-popup" })
+      );
+      expect(bindPopup).toHaveBeenCalledWith(
+        expect.stringContaining("Maramureș Conservation Stand"),
+        expect.objectContaining({ className: "fw-aoi-popup" })
+      );
+      expect(bindPopup.mock.calls[0][0]).toContain("fw-aoi-popup-name");
+    });
+
     it("toggles the monitored forests layer off in demonstration mode", async () => {
       fetchMapOverlay.mockResolvedValue({
         ...MOCK_OVERLAY,

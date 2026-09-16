@@ -24,9 +24,9 @@ export default function MonitoredAreasCard({ areas, entitlements, loading }) {
   }
 
   return (
-    <SurfaceCard className="p-4" testId="monitored-areas-card">
-      <div className="flex items-start justify-between gap-2 mb-3">
-        <div>
+    <SurfaceCard className="p-4 min-w-0" testId="monitored-areas-card">
+      <div className="flex flex-wrap items-start justify-between gap-2 mb-3">
+        <div className="min-w-0 flex-1">
           <div className="fw-kicker mb-1">Monitored forests</div>
           <div className="text-2xl font-bold tabular-nums text-[var(--accent-strong)]" data-testid="monitored-areas-count">
             {total}

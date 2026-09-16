@@ -475,7 +475,10 @@ function MonitoredAreasLayer({ areas, visible }) {
           },
         }
       );
-      layer.bindPopup(`<strong>${area.name ?? "Monitored Area"}</strong>`);
+      layer.bindPopup(
+        `<strong class="fw-aoi-popup-name">${area.name ?? "Monitored Area"}</strong>`,
+        { minWidth: 176, maxWidth: 280, className: "fw-aoi-popup" }
+      );
       return layer;
     });
 

@@ -24,6 +24,31 @@ describe("MonitoredAreasCard", () => {
     expect(screen.getByText("Harghita Block")).toBeInTheDocument();
   });
 
+  it("keeps long monitored-forest names wrapping on word boundaries", () => {
+    render(
+      <MonitoredAreasCard
+        areas={{
+          total: 3,
+          items: [
+            { id: "a1", name: "Harghita Forest Reserve", country: "Romania", geometry_type: "Polygon" },
+            { id: "a2", name: "Maramureș Conservation Stand", country: "Romania", geometry_type: "Polygon" },
+            { id: "a3", name: "Suceava", country: "Romania", geometry_type: "Polygon" },
+          ],
+        }}
+      />
+    );
+    const harghita = screen.getByTestId("monitored-area-name-a1");
+    const maramures = screen.getByTestId("monitored-area-name-a2");
+    const suceava = screen.getByTestId("monitored-area-name-a3");
+    expect(harghita).toHaveTextContent("Harghita Forest Reserve");
+    expect(maramures).toHaveTextContent("Maramureș Conservation Stand");
+    expect(suceava).toHaveTextContent("Suceava");
+    expect(harghita).toHaveClass("fw-name");
+    expect(maramures).toHaveClass("fw-name");
+    expect(harghita.className).not.toMatch(/break-all|break-words/);
+    expect(harghita.parentElement.className).not.toMatch(/min-w-0/);
+  });
+
   it("renders empty state", () => {
     render(<MonitoredAreasCard areas={{ total: 0, items: [] }} />);
     expect(screen.getByTestId("monitored-areas-empty")).toBeInTheDocument();
