@@ -179,17 +179,72 @@ function resolveMarkerCoords(item, geographicScope) {
 }
 
 // ---------------------------------------------------------------------------
-// Popup HTML builders (inline style only — Tailwind not available in Leaflet DOM)
+// Popup builders — dynamic values are assigned through textContent so
+// user/provider-derived strings can never become executable markup. Leaflet's
+// bindPopup accepts an HTMLElement, so these builders return DOM nodes. Only
+// the wind divIcon (whose API requires an HTML string) uses _escapeHtml below.
 // ---------------------------------------------------------------------------
 
-const _popupWrap = (accentColor, badge, regionName, rows) => `
-  <div style="font-family:system-ui,sans-serif;min-width:170px;max-width:220px">
-    <div style="font-size:10px;text-transform:uppercase;letter-spacing:.15em;color:${accentColor};font-weight:700;margin-bottom:2px">${badge}</div>
-    <div style="font-weight:700;font-size:14px;line-height:1.3;margin-bottom:8px;color:#1a1e1a">${regionName}</div>
-    <table style="font-size:11px;width:100%;border-collapse:collapse;color:#4a524a">
-      ${rows.map(([k, v]) => `<tr><td style="color:#7b827b;padding-right:10px;padding-bottom:2px">${k}</td><td style="font-weight:600;color:#1a1e1a">${v}</td></tr>`).join("")}
-    </table>
-  </div>`;
+/** Encode the HTML-significant characters for the one API that needs a string. */
+function _escapeHtml(value) {
+  return String(value ?? "").replace(/[&<>"']/g, (ch) => {
+    switch (ch) {
+      case "&":
+        return "&amp;";
+      case "<":
+        return "&lt;";
+      case ">":
+        return "&gt;";
+      case '"':
+        return "&quot;";
+      default:
+        return "&#39;";
+    }
+  });
+}
+
+/** Create an element, apply an inline style, and set text safely. */
+function _el(tag, style, text) {
+  const node = document.createElement(tag);
+  if (style) node.setAttribute("style", style);
+  if (text != null) node.textContent = String(text);
+  return node;
+}
+
+function _popupWrap(accentColor, badge, regionName, rows) {
+  const root = _el(
+    "div",
+    "font-family:system-ui,sans-serif;min-width:170px;max-width:220px"
+  );
+  root.appendChild(
+    _el(
+      "div",
+      `font-size:10px;text-transform:uppercase;letter-spacing:.15em;color:${accentColor};font-weight:700;margin-bottom:2px`,
+      badge
+    )
+  );
+  root.appendChild(
+    _el(
+      "div",
+      "font-weight:700;font-size:14px;line-height:1.3;margin-bottom:8px;color:#1a1e1a",
+      regionName
+    )
+  );
+  const table = _el(
+    "table",
+    "font-size:11px;width:100%;border-collapse:collapse;color:#4a524a"
+  );
+  rows.forEach(([k, v]) => {
+    const tr = document.createElement("tr");
+    tr.appendChild(
+      _el("td", "color:#7b827b;padding-right:10px;padding-bottom:2px", k)
+    );
+    tr.appendChild(_el("td", "font-weight:600;color:#1a1e1a", v));
+    table.appendChild(tr);
+  });
+  root.appendChild(table);
+  return root;
+}
 
 function forestEventPopup(evt) {
   const color = SEVERITY_COLORS[evt.severity] ?? "#7b827b";
@@ -466,10 +521,14 @@ function MonitoredAreasLayer({ map, areas, visible }) {
           },
         }
       );
-      layer.bindPopup(
-        `<strong class="fw-aoi-popup-name">${area.name ?? "Monitored Area"}</strong>`,
-        { minWidth: 176, maxWidth: 280, className: "fw-aoi-popup" }
-      );
+      const nameEl = document.createElement("strong");
+      nameEl.className = "fw-aoi-popup-name";
+      nameEl.textContent = area.name ?? "Monitored Area";
+      layer.bindPopup(nameEl, {
+        minWidth: 176,
+        maxWidth: 280,
+        className: "fw-aoi-popup",
+      });
       return layer;
     });
 
@@ -583,14 +642,16 @@ function RiskOverlayLayer({ map, riskRegions, visible }) {
         interactive: true,
         className: "risk-overlay-marker",
       });
-      marker.bindPopup(
-        `<div style="min-width:160px">
-          <strong>${r.region}</strong><br/>
-          <span style="color:${color}">●</span>
-          Risk: <strong>${r.risk_level}</strong>
-          (${(r.risk_score * 100).toFixed(1)}%)
-        </div>`
+      const popup = _el("div", "min-width:160px");
+      popup.appendChild(_el("strong", null, r.region ?? "—"));
+      popup.appendChild(document.createElement("br"));
+      popup.appendChild(_el("span", `color:${color}`, "●"));
+      popup.appendChild(document.createTextNode(" Risk: "));
+      popup.appendChild(_el("strong", null, r.risk_level ?? "—"));
+      popup.appendChild(
+        document.createTextNode(` (${(r.risk_score * 100).toFixed(1)}%)`)
       );
+      marker.bindPopup(popup);
       marker.addTo(map);
       markers.push(marker);
     });
@@ -645,23 +706,33 @@ function WeatherOverlayLayer({ map, weatherRegions, visible }) {
         ? new Date(r.updated_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
         : "—";
 
-      tempMarker.bindPopup(
-        `<div style="min-width:160px;font-family:system-ui,sans-serif">
-          <strong style="font-size:14px">${r.region}</strong><br/>
-          <table style="font-size:11px;margin-top:6px;width:100%;border-collapse:collapse;color:#4a524a">
-            <tr><td style="color:#7b827b;padding-right:8px">Temp</td>
-                <td style="color:${color};font-weight:700">${(r.temperature ?? 0).toFixed(1)} °C</td></tr>
-            <tr><td style="color:#7b827b;padding-right:8px">Humidity</td>
-                <td style="font-weight:600">${(r.humidity ?? 0).toFixed(0)} %</td></tr>
-            <tr><td style="color:#7b827b;padding-right:8px">Wind</td>
-                <td style="font-weight:600">${(r.wind_speed ?? 0).toFixed(1)} km/h ${compass}</td></tr>
-            <tr><td style="color:#7b827b;padding-right:8px">Precip</td>
-                <td style="font-weight:600">${(r.precipitation ?? 0).toFixed(1)} mm</td></tr>
-            <tr><td style="color:#7b827b;padding-right:8px">Updated</td>
-                <td style="font-weight:600">${updatedAt}</td></tr>
-          </table>
-        </div>`
+      const popup = _el(
+        "div",
+        "min-width:160px;font-family:system-ui,sans-serif"
       );
+      popup.appendChild(_el("strong", "font-size:14px", r.region ?? "—"));
+      popup.appendChild(document.createElement("br"));
+      const table = _el(
+        "table",
+        "font-size:11px;margin-top:6px;width:100%;border-collapse:collapse;color:#4a524a"
+      );
+      const addRow = (label, value, valueStyle) => {
+        const tr = document.createElement("tr");
+        tr.appendChild(_el("td", "color:#7b827b;padding-right:8px", label));
+        tr.appendChild(_el("td", valueStyle || "font-weight:600", value));
+        table.appendChild(tr);
+      };
+      addRow(
+        "Temp",
+        `${(r.temperature ?? 0).toFixed(1)} °C`,
+        `color:${color};font-weight:700`
+      );
+      addRow("Humidity", `${(r.humidity ?? 0).toFixed(0)} %`);
+      addRow("Wind", `${(r.wind_speed ?? 0).toFixed(1)} km/h ${compass}`);
+      addRow("Precip", `${(r.precipitation ?? 0).toFixed(1)} mm`);
+      addRow("Updated", updatedAt);
+      popup.appendChild(table);
+      tempMarker.bindPopup(popup);
       tempMarker.addTo(map);
       markers.push(tempMarker);
 
@@ -669,13 +740,13 @@ function WeatherOverlayLayer({ map, weatherRegions, visible }) {
       if (r.wind_speed > 0) {
         const arrowIcon = L.divIcon({
           html: `<div style="
-            transform: rotate(${windDir}deg);
+            transform: rotate(${_escapeHtml(windDir)}deg);
             font-size: 16px;
             line-height: 1;
             color: #3b82f6;
             text-shadow: 0 0 3px white;
             display:flex;align-items:center;justify-content:center;
-          " title="${(r.wind_speed ?? 0).toFixed(1)} km/h ${compass}">↑</div>`,
+          " title="${_escapeHtml(`${(r.wind_speed ?? 0).toFixed(1)} km/h ${compass}`)}">↑</div>`,
           iconSize: [20, 20],
           iconAnchor: [10, 10],
           className: "weather-wind-arrow",

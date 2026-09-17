@@ -935,6 +935,48 @@ describe("IntelligenceMap", () => {
       expect(L.circleMarker).toHaveBeenCalled();
     });
 
+    it("renders forest-event popup fields (_popupWrap) as inert text", async () => {
+      const PAYLOAD = '<img src=x onerror="window.__fw_xss_test=1">';
+      delete window.__fw_xss_test;
+      let popupNode = null;
+      L.circleMarker.mockImplementation(() => ({
+        bindPopup: jest.fn((content) => {
+          popupNode = content;
+          return { addTo: jest.fn() };
+        }),
+        addTo: jest.fn(),
+      }));
+      fetchMapOverlay.mockResolvedValue({
+        ...MOCK_OVERLAY,
+        forest_events: [
+          {
+            id: "e-xss",
+            latitude: 47.53,
+            longitude: 25.93,
+            severity: "critical",
+            region: PAYLOAD, // region → _popupWrap regionName
+            source: PAYLOAD, // source → a row value
+            detected_at: "2024-06-01T08:00:00Z",
+            land_cover_type: "forest",
+          },
+        ],
+      });
+      fetchAnomalies.mockResolvedValue({ anomalies: [] });
+      fetchIntelligenceEvents.mockResolvedValue({ active: [], resolved: [] });
+      fetchIntelligenceSummary.mockResolvedValue(MOCK_SUMMARY);
+
+      render(<IntelligenceMap />);
+      await waitForLoad();
+
+      expect(popupNode).toBeInstanceOf(HTMLElement);
+      // Region name and source render as literal text…
+      expect(popupNode.textContent).toContain(PAYLOAD);
+      // …with no element parsed out of either interpolated field.
+      expect(popupNode.querySelector("img")).toBeNull();
+      document.body.appendChild(popupNode);
+      expect(window.__fw_xss_test).toBeUndefined();
+      document.body.removeChild(popupNode);
+    });
     it("renders anomaly with forest_confidence without crashing", async () => {
       const anomaliesWithFC = {
         anomalies: [
@@ -1165,6 +1207,48 @@ describe("IntelligenceMap", () => {
       await waitFor(() => expect(fetchWeather).toHaveBeenCalledTimes(1));
     });
 
+    it("escapes dynamic values in the wind divIcon HTML", async () => {
+      let iconHtml = "";
+      L.divIcon.mockImplementation((opts) => {
+        iconHtml = opts?.html ?? "";
+        return {};
+      });
+      fetchWeather.mockResolvedValue({
+        provider: "Open-Meteo",
+        cache_ttl_minutes: 30,
+        regions: [
+          {
+            region: "Suceava",
+            temperature: 21.0,
+            humidity: 40.0,
+            wind_speed: 15.0,
+            // Provider-derived value forced to a hostile string to prove escaping.
+            wind_direction: '90"><img src=x onerror="window.__fw_xss_test=1">',
+            precipitation: 0.0,
+            weather_code: 1,
+            updated_at: null,
+          },
+        ],
+      });
+      setupMocks();
+      render(<IntelligenceMap />);
+      await waitForLoad();
+      const toggle = screen.getByTestId("layer-toggle-weather_overlay").querySelector("input");
+      fireEvent.click(toggle);
+      await waitFor(() => expect(L.divIcon).toHaveBeenCalled());
+
+      // The raw attribute-breaking sequence must not survive into the HTML…
+      expect(iconHtml).not.toContain('"><img');
+      expect(iconHtml).not.toContain("onerror=\"window");
+      // …it is present only in encoded form.
+      expect(iconHtml).toContain("&lt;img");
+      expect(iconHtml).toContain("&quot;");
+      // And parsing the generated HTML yields no live element from the payload.
+      const probe = document.createElement("div");
+      probe.innerHTML = iconHtml;
+      expect(probe.querySelector("img")).toBeNull();
+    });
+
     it("weather overlay toggle operates independently from risk overlay", async () => {
       setupMocks();
       render(<IntelligenceMap />);
@@ -1201,10 +1285,10 @@ describe("IntelligenceMap", () => {
   // -------------------------------------------------------------------------
   describe("popup content — threat intelligence", () => {
     it("includes threat fields when threat assessments are available", async () => {
-      let popupHtml = "";
+      let popupNode = null;
       L.circleMarker.mockImplementation(() => ({
-        bindPopup: jest.fn((html) => {
-          popupHtml = html;
+        bindPopup: jest.fn((content) => {
+          popupNode = content;
           return { addTo: jest.fn() };
         }),
         addTo: jest.fn(),
@@ -1231,10 +1315,14 @@ describe("IntelligenceMap", () => {
       render(<IntelligenceMap />);
       await waitForLoad();
 
-      expect(popupHtml).toMatch(/Threat/i);
-      expect(popupHtml).toMatch(/Wildfire/i);
-      expect(popupHtml).toMatch(/natural/i);
-      expect(popupHtml).toMatch(/Increase satellite monitoring/i);
+      // bindPopup now receives a DOM node (not an HTML string). Its rendered
+      // text still carries the threat fields.
+      expect(popupNode).toBeInstanceOf(HTMLElement);
+      const popupText = popupNode.textContent;
+      expect(popupText).toMatch(/Threat/i);
+      expect(popupText).toMatch(/Wildfire/i);
+      expect(popupText).toMatch(/natural/i);
+      expect(popupText).toMatch(/Increase satellite monitoring/i);
     });
   });
 
@@ -1393,15 +1481,57 @@ describe("IntelligenceMap", () => {
       render(<IntelligenceMap demoMode />);
       await waitForLoad();
       expect(bindPopup).toHaveBeenCalledTimes(2);
-      expect(bindPopup).toHaveBeenCalledWith(
-        expect.stringContaining("Harghita Forest Reserve"),
-        expect.objectContaining({ minWidth: 176, maxWidth: 280, className: "fw-aoi-popup" })
-      );
-      expect(bindPopup).toHaveBeenCalledWith(
-        expect.stringContaining("Maramureș Conservation Stand"),
-        expect.objectContaining({ className: "fw-aoi-popup" })
-      );
-      expect(bindPopup.mock.calls[0][0]).toContain("fw-aoi-popup-name");
+      // bindPopup now receives a DOM node whose name is set via textContent.
+      const [firstNode, firstOpts] = bindPopup.mock.calls[0];
+      expect(firstNode).toBeInstanceOf(HTMLElement);
+      expect(firstNode.classList.contains("fw-aoi-popup-name")).toBe(true);
+      expect(firstNode.textContent).toBe("Harghita Forest Reserve");
+      expect(firstOpts).toMatchObject({
+        minWidth: 176,
+        maxWidth: 280,
+        className: "fw-aoi-popup",
+      });
+      const [secondNode, secondOpts] = bindPopup.mock.calls[1];
+      expect(secondNode.textContent).toBe("Maramureș Conservation Stand");
+      expect(secondOpts).toMatchObject({ className: "fw-aoi-popup" });
+    });
+
+    it("renders a malicious AOI name as inert text, not executable markup", async () => {
+      const PAYLOAD = '<img src=x onerror="window.__fw_xss_test=1">';
+      delete window.__fw_xss_test;
+      const bindPopup = jest.fn().mockReturnThis();
+      L.geoJSON.mockImplementation(() => ({
+        bindPopup,
+        addTo: jest.fn().mockReturnThis(),
+      }));
+      fetchMapOverlay.mockResolvedValue({
+        ...MOCK_OVERLAY,
+        monitored_areas: [
+          {
+            id: "evil",
+            name: PAYLOAD,
+            geometry: {
+              type: "Polygon",
+              coordinates: [[[25.5, 46.8], [26.5, 46.8], [26.5, 47.5], [25.5, 47.5], [25.5, 46.8]]],
+            },
+          },
+        ],
+      });
+      render(<IntelligenceMap demoMode />);
+      await waitForLoad();
+
+      expect(bindPopup).toHaveBeenCalledTimes(1);
+      const node = bindPopup.mock.calls[0][0];
+      expect(node).toBeInstanceOf(HTMLElement);
+      // Literal text is preserved…
+      expect(node.textContent).toBe(PAYLOAD);
+      // …but no element was parsed out of the payload.
+      expect(node.querySelector("img")).toBeNull();
+      expect(node.querySelectorAll("*").length).toBe(0);
+      // Attaching to a live DOM must not run the onerror handler.
+      document.body.appendChild(node);
+      expect(window.__fw_xss_test).toBeUndefined();
+      document.body.removeChild(node);
     });
 
     it("toggles the monitored forests layer off in demonstration mode", async () => {
