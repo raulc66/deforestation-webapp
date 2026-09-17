@@ -60,13 +60,14 @@ describe("SalesPage", () => {
     ).toBeGreaterThan(0);
   });
 
-  it("paints the document root for first-load sales background", () => {
+  it("keeps the document on the light public canvas", () => {
     const { unmount } = render(
       <MemoryRouter>
         <SalesPage />
       </MemoryRouter>
     );
     expect(document.documentElement.classList.contains("sales-root")).toBe(true);
+    expect(screen.getByTestId("sales-page")).toHaveClass("sales");
     unmount();
     expect(document.documentElement.classList.contains("sales-root")).toBe(false);
   });

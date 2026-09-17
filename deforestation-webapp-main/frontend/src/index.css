@@ -85,8 +85,8 @@ body {
 html.sales-root,
 html.sales-root body,
 html.sales-root #root {
-    background-color: #161916;
-    color: #eef0ec;
+    background-color: var(--bg-default);
+    color: var(--text-primary);
 }
 
 h1,

@@ -1,14 +1,16 @@
 /* Public sales page only. Operational product styles stay in index.css. */
 
 .sales {
-  --sales-bg: #161916;
-  --sales-bg-raised: #1c201c;
-  --sales-line: #2c322c;
-  --sales-ink: #eef0ec;
-  --sales-muted: #9aa39a;
-  --sales-faint: #6e766e;
-  --sales-paper: #f4f5f2;
-  --sales-accent: #c4cdc4;
+  --sales-bg: #f4f5f2;
+  --sales-bg-raised: #ffffff;
+  --sales-line: #eaece6;
+  --sales-ink: #1a1e1a;
+  --sales-muted: #4a524a;
+  --sales-faint: #7b827b;
+  --sales-paper: #ffffff;
+  --sales-accent: #3d4f46;
+  --sales-fill: #2a3d35;
+  --sales-on-fill: #ffffff;
   --sales-signal: var(--signal);
   color: var(--sales-ink);
   background: var(--sales-bg);
@@ -27,7 +29,7 @@
 
 .sales a:focus-visible,
 .sales button:focus-visible {
-  outline: 2px solid var(--sales-paper);
+  outline: 2px solid var(--sales-fill);
   outline-offset: 3px;
 }
 
@@ -35,8 +37,8 @@
   position: absolute;
   left: -999px;
   top: 0;
-  background: var(--sales-paper);
-  color: var(--sales-bg);
+  background: var(--sales-fill);
+  color: var(--sales-on-fill);
   padding: 0.5rem 0.75rem;
   z-index: 80;
 }
@@ -99,8 +101,8 @@
 }
 
 .sales-nav-demo {
-  color: var(--sales-bg) !important;
-  background: var(--sales-paper);
+  color: var(--sales-on-fill) !important;
+  background: var(--sales-fill);
   padding: 0.4rem 0.75rem;
   font-weight: 600;
 }
@@ -170,16 +172,16 @@
 }
 
 .sales-btn-primary {
-  background: var(--sales-paper);
-  color: var(--sales-bg);
+  background: var(--sales-fill);
+  color: var(--sales-on-fill);
 }
 
 .sales-btn-primary:hover {
-  background: #fff;
+  background: var(--sales-accent);
 }
 
 .sales-btn-secondary {
-  background: transparent;
+  background: var(--sales-paper);
   color: var(--sales-ink);
   border-color: var(--sales-line);
 }
@@ -534,7 +536,7 @@
 }
 
 .sales-faq-item summary:focus-visible {
-  outline: 2px solid var(--sales-paper);
+  outline: 2px solid var(--sales-fill);
   outline-offset: 3px;
 }
 
