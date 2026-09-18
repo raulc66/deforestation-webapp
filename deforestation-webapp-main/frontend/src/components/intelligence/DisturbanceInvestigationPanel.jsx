@@ -14,6 +14,20 @@ import TrialConversionCta from "@/components/trial/TrialConversionCta";
 import { demoSimulationNotice } from "@/lib/demo";
 
 const ASSESSMENT_LABEL = "Potential Unauthorized Forest Activity";
+const SUB_XL_QUERY = "(max-width: 1279px)";
+
+function prefersReducedMotion() {
+  return Boolean(
+    typeof window !== "undefined" &&
+      window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches
+  );
+}
+
+function isSubXlViewport() {
+  return Boolean(
+    typeof window !== "undefined" && window.matchMedia?.(SUB_XL_QUERY)?.matches
+  );
+}
 
 /**
  * Investigation workflow for forest disturbance — semantic safety preserved.
@@ -30,6 +44,8 @@ export default function DisturbanceInvestigationPanel({
   const trial = useTrial();
   const demoMode = isDemo || demo.isDemo;
   const panelRef = useRef(null);
+  const actionRef = useRef(null);
+  const skipInitialMobileScrollRef = useRef(true);
 
   useEffect(() => {
     if (!demoMode || !item) return;
@@ -38,17 +54,27 @@ export default function DisturbanceInvestigationPanel({
   }, [demoMode, item?.event_id]);
 
   useEffect(() => {
-    if (!opened || !panelRef.current) return;
-    if (typeof panelRef.current.scrollIntoView === "function") {
-      const reduceMotion =
-        typeof window !== "undefined" &&
-        window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
+    if (!item?.event_id || !panelRef.current) return;
+    const behavior = prefersReducedMotion() ? "auto" : "smooth";
+    const subXl = isSubXlViewport();
+
+    if (subXl) {
+      if (skipInitialMobileScrollRef.current) {
+        skipInitialMobileScrollRef.current = false;
+        if (!opened) return;
+      }
+      const target = actionRef.current || panelRef.current;
+      if (typeof target.scrollIntoView === "function") {
+        target.scrollIntoView({ behavior, block: "nearest" });
+      }
+    } else if (opened && typeof panelRef.current.scrollIntoView === "function") {
       panelRef.current.scrollIntoView({
-        behavior: reduceMotion ? "auto" : "smooth",
+        behavior,
         block: "start",
       });
     }
-    if (typeof panelRef.current.focus === "function") {
+
+    if (opened && typeof panelRef.current.focus === "function") {
       panelRef.current.focus();
     }
   }, [opened, item?.event_id]);
@@ -100,9 +126,10 @@ export default function DisturbanceInvestigationPanel({
       <div
         ref={panelRef}
         tabIndex={opened ? -1 : undefined}
-        className={opened ? "outline-none scroll-mt-16" : undefined}
+        className={`flex flex-col${opened ? " outline-none scroll-mt-16" : ""}`}
         data-testid={opened ? "investigation-opened" : undefined}
       >
+      <div className="order-1">
       <div className={`fw-kicker mb-2${opened ? " text-[var(--accent-strong)]" : ""}`}>
         {opened ? "Investigation open" : "Investigation focus"}
       </div>
@@ -133,8 +160,9 @@ export default function DisturbanceInvestigationPanel({
           <StatusBadge variant="degraded" label="Repeated activity" testId="disturbance-repeat" />
         )}
       </div>
+      </div>
 
-      <section className="mt-5" data-testid="investigation-observation">
+      <section className="order-3 xl:order-2 mt-5" data-testid="investigation-observation">
         <div className="fw-kicker mb-2">Observation</div>
         <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3 text-sm">
           {typeof affectedHa === "number" && (
@@ -163,7 +191,7 @@ export default function DisturbanceInvestigationPanel({
         </p>
       </section>
 
-      <section className="mt-5 pt-4 border-t border-[var(--surface-inset)]" data-testid="investigation-inference">
+      <section className="order-4 xl:order-3 mt-5 pt-4 border-t border-[var(--surface-inset)]" data-testid="investigation-inference">
         <div className="fw-kicker mb-2">Inference</div>
         {disturbance.probable_driver ? (
           <p className="text-sm font-medium text-[var(--text-primary)]">
@@ -190,13 +218,13 @@ export default function DisturbanceInvestigationPanel({
       </section>
 
       <section
-        className={`mt-5 pt-4 border-t border-[var(--surface-inset)]${opened ? " rounded-md bg-[var(--surface-subtle)] px-3 pb-3 pt-3" : ""}`}
+        className={`order-5 xl:order-4 mt-5 pt-4 border-t border-[var(--surface-inset)]${opened ? " rounded-md bg-[var(--surface-subtle)] px-3 pb-3 pt-3" : ""}`}
         data-testid="investigation-evidence"
       >
         <EvidenceBlock summary={summary} disturbance={disturbance} />
       </section>
 
-      <section className="mt-5 pt-4 border-t border-[var(--surface-inset)]" data-testid="investigation-unknown">
+      <section className="order-6 xl:order-5 mt-5 pt-4 border-t border-[var(--surface-inset)]" data-testid="investigation-unknown">
         <div className="fw-kicker mb-2">Unknown</div>
         <div className="flex items-start gap-2 text-xs text-[var(--text-muted)]">
           <ShieldQuestion className="w-3.5 h-3.5 shrink-0 mt-0.5" />
@@ -204,7 +232,11 @@ export default function DisturbanceInvestigationPanel({
         </div>
       </section>
 
-      <section className="mt-5 pt-4 border-t border-[var(--surface-inset)]" data-testid="investigation-action">
+      <section
+        ref={actionRef}
+        className="order-2 xl:order-6 mt-4 xl:mt-5 pt-4 border-t border-[var(--surface-inset)] scroll-mt-20"
+        data-testid="investigation-action"
+      >
         <div className="fw-kicker mb-2">Action</div>
         {onInvestigate && (
           <button

@@ -211,7 +211,7 @@ export default function IntelligenceCommandCenter({
       {!isDemo && <BillingCapabilityStrip status={billingStatus} />}
 
       <div className="grid grid-cols-1 xl:grid-cols-5 gap-0 xl:divide-x divide-[var(--surface-inset)]">
-        <div className="xl:col-span-2 p-5">
+        <div className="xl:col-span-2 p-5 order-2 xl:order-1" data-testid="command-center-queue-column">
           <div className="flex items-center gap-2 mb-3">
             <AlertTriangle className="w-4 h-4 text-[var(--signal)]" strokeWidth={1.8} />
             <h3 className="text-sm font-semibold">Requires attention</h3>
@@ -285,7 +285,7 @@ export default function IntelligenceCommandCenter({
           )}
         </div>
 
-        <div className="xl:col-span-3 p-5 bg-[var(--surface-subtle)]/40">
+        <div className="xl:col-span-3 p-5 bg-[var(--surface-subtle)]/40 order-1 xl:order-2" data-testid="command-center-detail-column">
           {selectedItem?.incident_category === "forest_disturbance" ? (
             <DisturbanceInvestigationPanel
               item={selectedItem}

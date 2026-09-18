@@ -31,7 +31,7 @@ function DemoDashboard({ demo }) {
     <AppLayout>
       <div className="bg-grain min-h-screen">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-10 py-6 lg:py-10" data-testid="dashboard-page">
-          <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4 mb-6">
+          <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4 mb-6 scroll-mt-20">
             <div>
               <div className="fw-kicker mb-2">ForestWatch Demo</div>
               <h1 className="text-3xl lg:text-4xl font-bold tracking-tight">
@@ -45,7 +45,7 @@ function DemoDashboard({ demo }) {
             <button
               type="button"
               onClick={() => resetDemo()}
-              className="text-sm font-semibold text-[var(--accent)] hover:underline self-start"
+              className="text-sm font-semibold text-[var(--accent)] hover:underline self-start scroll-mt-20"
               data-testid="demo-reset"
             >
               Reset demonstration
@@ -67,12 +67,17 @@ function DemoDashboard({ demo }) {
           )}
 
           <div className="grid grid-cols-1 xl:grid-cols-4 gap-5 mb-8">
-            <div className="order-2 xl:order-1 xl:col-span-1 space-y-4 min-w-0">
+            <div className="order-1 xl:col-start-1 xl:row-start-1 min-w-0" data-testid="demo-guide-column">
               <DemoGuideRail
                 guide={status?.guide ?? []}
                 currentStep={status?.guide_step}
                 onSelect={setGuideStep}
               />
+            </div>
+            <div className="order-2 xl:col-start-2 xl:col-span-3 xl:row-start-1 xl:row-span-2 min-w-0" data-testid="demo-command-column">
+              <IntelligenceSection />
+            </div>
+            <div className="order-3 xl:col-start-1 xl:row-start-2 space-y-4 min-w-0" data-testid="demo-scenario-column">
               <DemoScenarioSwitcher
                 scenarios={status?.scenarios ?? []}
                 focused={status?.focused_scenario}
@@ -84,9 +89,6 @@ function DemoDashboard({ demo }) {
                   onClick={() => recordEvent("conversion_cta_clicked", { moment: conversion })}
                 />
               )}
-            </div>
-            <div className="order-1 xl:order-2 xl:col-span-3 min-w-0">
-              <IntelligenceSection />
             </div>
           </div>
         </div>

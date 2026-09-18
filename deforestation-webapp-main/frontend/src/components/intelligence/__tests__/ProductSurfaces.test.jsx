@@ -118,6 +118,8 @@ describe("IntelligenceCommandCenter", () => {
     expect(screen.getByTestId("disturbance-investigate-btn")).toHaveTextContent("Investigation open");
     expect(screen.getByTestId("investigation-opened")).toHaveClass("scroll-mt-16");
     expect(screen.getByTestId("command-center-queue-name-ie-1")).toHaveTextContent("Harghita");
+    expect(screen.getByTestId("command-center-detail-column")).toHaveClass("order-1", "xl:order-2");
+    expect(screen.getByTestId("command-center-queue-column")).toHaveClass("order-2", "xl:order-1");
   });
 
   it("gives long queue names word-wrapping space beside the priority badge", () => {
@@ -235,5 +237,48 @@ describe("DisturbanceInvestigationPanel", () => {
     expect(screen.getByTestId("disturbance-investigate-btn")).toHaveTextContent("Investigation open");
     expect(screen.getByTestId("investigation-observation")).toBeInTheDocument();
     expect(screen.getByTestId("investigation-evidence")).toBeInTheDocument();
+  });
+
+  it("moves the action block before evidence below xl without duplicating handlers", () => {
+    const handler = jest.fn();
+    render(
+      <DisturbanceInvestigationPanel item={MOCK_EVIDENCE_ITEM} onInvestigate={handler} isDemo />
+    );
+    const action = screen.getByTestId("investigation-action");
+    expect(action).toHaveClass("order-2", "xl:order-6", "scroll-mt-20");
+    expect(screen.getByTestId("investigation-observation")).toHaveClass("order-3", "xl:order-2");
+    fireEvent.click(screen.getByTestId("disturbance-investigate-btn"));
+    expect(handler).toHaveBeenCalledTimes(1);
+    expect(handler).toHaveBeenCalledWith(MOCK_EVIDENCE_ITEM);
+    expect(screen.getAllByTestId("disturbance-investigate-btn")).toHaveLength(1);
+    expect(screen.getAllByTestId("demo-simulate-alert")).toHaveLength(1);
+  });
+
+  it("scrolls the action section nearest on sub-xl after opening an investigation", () => {
+    const originalMatchMedia = window.matchMedia;
+    window.matchMedia = jest.fn((query) => ({
+      matches: String(query).includes("max-width: 1279px"),
+      media: query,
+      addEventListener: jest.fn(),
+      removeEventListener: jest.fn(),
+    }));
+    try {
+      const { rerender } = render(
+        <DisturbanceInvestigationPanel item={MOCK_EVIDENCE_ITEM} onInvestigate={jest.fn()} isDemo />
+      );
+      const action = screen.getByTestId("investigation-action");
+      action.scrollIntoView = jest.fn();
+      rerender(
+        <DisturbanceInvestigationPanel
+          item={MOCK_EVIDENCE_ITEM}
+          onInvestigate={jest.fn()}
+          isDemo
+          opened
+        />
+      );
+      expect(action.scrollIntoView).toHaveBeenCalledWith({ behavior: "smooth", block: "nearest" });
+    } finally {
+      window.matchMedia = originalMatchMedia;
+    }
   });
 });

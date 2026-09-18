@@ -112,4 +112,24 @@ describe("Demo dashboard conversion timing", () => {
     expect(screen.getByTestId("demo-conversion-cta")).toBeInTheDocument();
     expect(screen.getByTestId("demo-conversion-alert")).toBeInTheDocument();
   });
+
+  it("places the guided demo path before Command Center below xl", () => {
+    mockDemo.status = {
+      guide: [{ id: "watch", title: "Your monitored forests", body: "These stands are watched." }],
+      scenarios: [],
+      budget: { remaining: { investigation: 5 }, limits: { investigation: 5 } },
+    };
+    render(
+      <MemoryRouter>
+        <DashboardPage />
+      </MemoryRouter>
+    );
+    const guideColumn = screen.getByTestId("demo-guide-column");
+    const commandColumn = screen.getByTestId("demo-command-column");
+    expect(guideColumn).toHaveClass("order-1");
+    expect(commandColumn).toHaveClass("order-2");
+    expect(guideColumn.compareDocumentPosition(commandColumn) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByTestId("demo-guide-rail")).toBeInTheDocument();
+    expect(screen.getByTestId("demo-reset")).toHaveClass("scroll-mt-20");
+  });
 });
