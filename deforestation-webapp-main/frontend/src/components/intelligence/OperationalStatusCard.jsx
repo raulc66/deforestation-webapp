@@ -37,7 +37,7 @@ export default function OperationalStatusCard({ status, loading }) {
       <div className="text-sm space-y-2 text-[var(--text-secondary)]">
         <div>
           <span className="font-semibold text-[var(--text-primary)]">Scope:</span>{" "}
-          {status.geographic_scope}
+          {status.geographic_scope === "romania" ? "Romania" : status.geographic_scope}
         </div>
         <div>
           <span className="font-semibold text-[var(--text-primary)]">Cycle:</span>{" "}

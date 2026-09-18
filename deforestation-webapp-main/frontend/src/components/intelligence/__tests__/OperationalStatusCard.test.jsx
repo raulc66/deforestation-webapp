@@ -28,4 +28,20 @@ describe("OperationalStatusCard", () => {
     expect(screen.getByTestId("provider-eea.air_quality")).toHaveTextContent("EEA Air Quality");
     expect(screen.getByTestId("operational-system-badge")).toHaveTextContent("Operational");
   });
+
+  it("capitalizes Romania when the scope value is the country name", () => {
+    render(
+      <OperationalStatusCard
+        status={{
+          geographic_scope: "romania",
+          intelligence_cycle: { intelligence_cycle_id: "cycle-ro" },
+          correlation: { state: "current" },
+          providers: [],
+        }}
+        loading={false}
+      />
+    );
+    expect(screen.getByText("Romania")).toBeInTheDocument();
+    expect(screen.queryByText("romania")).not.toBeInTheDocument();
+  });
 });
