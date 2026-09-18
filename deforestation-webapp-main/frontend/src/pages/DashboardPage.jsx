@@ -67,17 +67,12 @@ function DemoDashboard({ demo }) {
           )}
 
           <div className="grid grid-cols-1 xl:grid-cols-4 gap-5 mb-8">
-            <div className="order-1 xl:col-start-1 xl:row-start-1 min-w-0" data-testid="demo-guide-column">
+            <div className="order-1 xl:col-span-1 space-y-4 min-w-0" data-testid="demo-guide-column">
               <DemoGuideRail
                 guide={status?.guide ?? []}
                 currentStep={status?.guide_step}
                 onSelect={setGuideStep}
               />
-            </div>
-            <div className="order-2 xl:col-start-2 xl:col-span-3 xl:row-start-1 xl:row-span-2 min-w-0" data-testid="demo-command-column">
-              <IntelligenceSection />
-            </div>
-            <div className="order-3 xl:col-start-1 xl:row-start-2 space-y-4 min-w-0" data-testid="demo-scenario-column">
               <DemoScenarioSwitcher
                 scenarios={status?.scenarios ?? []}
                 focused={status?.focused_scenario}
@@ -89,6 +84,9 @@ function DemoDashboard({ demo }) {
                   onClick={() => recordEvent("conversion_cta_clicked", { moment: conversion })}
                 />
               )}
+            </div>
+            <div className="order-2 xl:col-span-3 min-w-0" data-testid="demo-command-column">
+              <IntelligenceSection />
             </div>
           </div>
         </div>

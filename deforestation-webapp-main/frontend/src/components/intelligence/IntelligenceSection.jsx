@@ -204,6 +204,7 @@ export default function IntelligenceSection() {
 
         <div className="mb-6">
           <IntelligenceCommandCenter
+            key={demo.status?.reset_count ?? 0}
             monitoringStatus={monitoringStatus}
             commandCenter={commandCenter}
             events={events}

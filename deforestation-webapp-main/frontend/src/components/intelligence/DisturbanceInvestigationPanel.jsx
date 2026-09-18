@@ -15,6 +15,7 @@ import { demoSimulationNotice } from "@/lib/demo";
 
 const ASSESSMENT_LABEL = "Potential Unauthorized Forest Activity";
 const SUB_XL_QUERY = "(max-width: 1279px)";
+const ACTION_SCROLL_OFFSET_PX = 80;
 
 function prefersReducedMotion() {
   return Boolean(
@@ -27,6 +28,16 @@ function isSubXlViewport() {
   return Boolean(
     typeof window !== "undefined" && window.matchMedia?.(SUB_XL_QUERY)?.matches
   );
+}
+
+function scrollWindowToAction(el, behavior) {
+  if (!el || typeof window === "undefined" || typeof window.scrollTo !== "function") {
+    return;
+  }
+  const rect = el.getBoundingClientRect();
+  const currentY = window.scrollY || window.pageYOffset || 0;
+  const top = Math.max(0, rect.top + currentY - ACTION_SCROLL_OFFSET_PX);
+  window.scrollTo({ top, behavior });
 }
 
 /**
@@ -43,9 +54,13 @@ export default function DisturbanceInvestigationPanel({
   const demo = useDemo();
   const trial = useTrial();
   const demoMode = isDemo || demo.isDemo;
+  const guideStep = demo.status?.guide_step;
   const panelRef = useRef(null);
   const actionRef = useRef(null);
   const skipInitialMobileScrollRef = useRef(true);
+  const prevEventIdRef = useRef(item?.event_id);
+  const prevOpenedRef = useRef(opened);
+  const prevGuideStepRef = useRef(guideStep);
 
   useEffect(() => {
     if (!demoMode || !item) return;
@@ -54,26 +69,43 @@ export default function DisturbanceInvestigationPanel({
   }, [demoMode, item?.event_id]);
 
   useEffect(() => {
-    if (!item?.event_id || !panelRef.current) return;
-    const behavior = prefersReducedMotion() ? "auto" : "smooth";
-    const subXl = isSubXlViewport();
+    if (!item?.event_id) return;
+    if (!isSubXlViewport()) return;
 
-    if (subXl) {
-      if (skipInitialMobileScrollRef.current) {
-        skipInitialMobileScrollRef.current = false;
-        if (!opened) return;
-      }
-      const target = actionRef.current || panelRef.current;
-      if (typeof target.scrollIntoView === "function") {
-        target.scrollIntoView({ behavior, block: "nearest" });
-      }
-    } else if (opened && typeof panelRef.current.scrollIntoView === "function") {
+    if (skipInitialMobileScrollRef.current) {
+      skipInitialMobileScrollRef.current = false;
+      prevEventIdRef.current = item.event_id;
+      prevOpenedRef.current = opened;
+      prevGuideStepRef.current = guideStep;
+      return;
+    }
+
+    const eventChanged = prevEventIdRef.current !== item.event_id;
+    const justOpened = Boolean(opened) && !prevOpenedRef.current;
+    const investigateActivated =
+      guideStep === "investigate" && prevGuideStepRef.current !== "investigate";
+    prevEventIdRef.current = item.event_id;
+    prevOpenedRef.current = opened;
+    prevGuideStepRef.current = guideStep;
+
+    if ((eventChanged || justOpened || investigateActivated) && actionRef.current) {
+      scrollWindowToAction(
+        actionRef.current,
+        prefersReducedMotion() ? "auto" : "smooth"
+      );
+    }
+  }, [opened, item?.event_id, guideStep]);
+
+  useEffect(() => {
+    if (!item?.event_id || !panelRef.current) return;
+    if (isSubXlViewport()) return;
+    const behavior = prefersReducedMotion() ? "auto" : "smooth";
+    if (opened && typeof panelRef.current.scrollIntoView === "function") {
       panelRef.current.scrollIntoView({
         behavior,
         block: "start",
       });
     }
-
     if (opened && typeof panelRef.current.focus === "function") {
       panelRef.current.focus();
     }

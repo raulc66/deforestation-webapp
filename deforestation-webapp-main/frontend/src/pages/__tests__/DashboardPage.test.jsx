@@ -116,7 +116,10 @@ describe("Demo dashboard conversion timing", () => {
   it("places the guided demo path before Command Center below xl", () => {
     mockDemo.status = {
       guide: [{ id: "watch", title: "Your monitored forests", body: "These stands are watched." }],
-      scenarios: [],
+      scenarios: [
+        { id: "high-priority", title: "High-priority forest disturbance", summary: "Critical stand." },
+      ],
+      focused_scenario: "high-priority",
       budget: { remaining: { investigation: 5 }, limits: { investigation: 5 } },
     };
     render(
@@ -124,12 +127,17 @@ describe("Demo dashboard conversion timing", () => {
         <DashboardPage />
       </MemoryRouter>
     );
-    const guideColumn = screen.getByTestId("demo-guide-column");
+    const sidebar = screen.getByTestId("demo-guide-column");
     const commandColumn = screen.getByTestId("demo-command-column");
-    expect(guideColumn).toHaveClass("order-1");
-    expect(commandColumn).toHaveClass("order-2");
-    expect(guideColumn.compareDocumentPosition(commandColumn) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(sidebar).toHaveClass("order-1", "xl:col-span-1", "space-y-4");
+    expect(commandColumn).toHaveClass("order-2", "xl:col-span-3");
+    expect(sidebar.className).not.toMatch(/row-span/);
+    expect(commandColumn.className).not.toMatch(/row-span/);
+    expect(sidebar.compareDocumentPosition(commandColumn) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(screen.getByTestId("demo-guide-rail")).toBeInTheDocument();
+    expect(sidebar).toContainElement(screen.getByTestId("demo-scenario-switcher"));
+    expect(screen.getAllByTestId("demo-scenario-switcher")).toHaveLength(1);
+    expect(screen.queryByTestId("demo-scenario-column")).not.toBeInTheDocument();
     expect(screen.getByTestId("demo-reset")).toHaveClass("scroll-mt-20");
   });
 });

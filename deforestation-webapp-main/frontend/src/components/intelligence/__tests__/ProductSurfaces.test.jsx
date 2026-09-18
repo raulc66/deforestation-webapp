@@ -3,14 +3,17 @@ import { MemoryRouter } from "react-router-dom";
 import IntelligenceCommandCenter from "../IntelligenceCommandCenter";
 import DisturbanceInvestigationPanel from "../DisturbanceInvestigationPanel";
 
+const mockDemo = {
+  isDemo: false,
+  lastSimulation: null,
+  status: { guide_step: "forests" },
+  recordEvent: jest.fn(),
+  simulateAlert: jest.fn(),
+  setGuideStep: jest.fn(),
+};
+
 jest.mock("@/context/DemoContext", () => ({
-  useDemo: () => ({
-    isDemo: false,
-    lastSimulation: null,
-    recordEvent: jest.fn(),
-    simulateAlert: jest.fn(),
-    setGuideStep: jest.fn(),
-  }),
+  useDemo: () => mockDemo,
 }));
 
 jest.mock("@/context/TrialContext", () => ({
@@ -198,6 +201,10 @@ describe("IntelligenceCommandCenter", () => {
 });
 
 describe("DisturbanceInvestigationPanel", () => {
+  beforeEach(() => {
+    mockDemo.status = { guide_step: "forests" };
+    mockDemo.isDemo = false;
+  });
   it("preserves safe assessment language", () => {
     render(<DisturbanceInvestigationPanel item={MOCK_EVIDENCE_ITEM} />);
     expect(screen.getByText(/Potential Unauthorized Forest Activity/i)).toBeInTheDocument();
@@ -254,20 +261,36 @@ describe("DisturbanceInvestigationPanel", () => {
     expect(screen.getAllByTestId("demo-simulate-alert")).toHaveLength(1);
   });
 
-  it("scrolls the action section nearest on sub-xl after opening an investigation", () => {
+  it("scrolls the window to the action section on sub-xl after a deliberate investigation focus", () => {
     const originalMatchMedia = window.matchMedia;
+    const originalScrollTo = window.scrollTo;
     window.matchMedia = jest.fn((query) => ({
       matches: String(query).includes("max-width: 1279px"),
       media: query,
       addEventListener: jest.fn(),
       removeEventListener: jest.fn(),
     }));
+    window.scrollTo = jest.fn();
     try {
       const { rerender } = render(
         <DisturbanceInvestigationPanel item={MOCK_EVIDENCE_ITEM} onInvestigate={jest.fn()} isDemo />
       );
+      expect(window.scrollTo).not.toHaveBeenCalled();
+
       const action = screen.getByTestId("investigation-action");
+      action.getBoundingClientRect = () => ({
+        top: 1400,
+        bottom: 1528,
+        left: 0,
+        right: 320,
+        width: 320,
+        height: 128,
+        x: 0,
+        y: 1400,
+        toJSON: () => {},
+      });
       action.scrollIntoView = jest.fn();
+
       rerender(
         <DisturbanceInvestigationPanel
           item={MOCK_EVIDENCE_ITEM}
@@ -276,9 +299,74 @@ describe("DisturbanceInvestigationPanel", () => {
           opened
         />
       );
-      expect(action.scrollIntoView).toHaveBeenCalledWith({ behavior: "smooth", block: "nearest" });
+      expect(action.scrollIntoView).not.toHaveBeenCalled();
+      expect(window.scrollTo).toHaveBeenCalledWith({ top: 1320, behavior: "smooth" });
     } finally {
       window.matchMedia = originalMatchMedia;
+      window.scrollTo = originalScrollTo;
+    }
+  });
+
+  it("scrolls the window to actions when a queue item is selected below xl", () => {
+    const originalMatchMedia = window.matchMedia;
+    const originalScrollTo = window.scrollTo;
+    window.matchMedia = jest.fn((query) => ({
+      matches: String(query).includes("max-width: 1279px"),
+      media: query,
+      addEventListener: jest.fn(),
+      removeEventListener: jest.fn(),
+    }));
+    window.scrollTo = jest.fn();
+    try {
+      const { rerender } = render(
+        <DisturbanceInvestigationPanel item={MOCK_EVIDENCE_ITEM} onInvestigate={jest.fn()} isDemo />
+      );
+      window.scrollTo.mockClear();
+      const nextItem = { ...MOCK_EVIDENCE_ITEM, event_id: "ie-2", region: "Suceava" };
+      rerender(
+        <DisturbanceInvestigationPanel item={nextItem} onInvestigate={jest.fn()} isDemo />
+      );
+      expect(window.scrollTo).toHaveBeenCalledWith(
+        expect.objectContaining({ behavior: "smooth" })
+      );
+    } finally {
+      window.matchMedia = originalMatchMedia;
+      window.scrollTo = originalScrollTo;
+    }
+  });
+
+  it("scrolls the window when the Investigate guide step is activated below xl", () => {
+    const originalMatchMedia = window.matchMedia;
+    const originalScrollTo = window.scrollTo;
+    window.matchMedia = jest.fn((query) => ({
+      matches: String(query).includes("max-width: 1279px"),
+      media: query,
+      addEventListener: jest.fn(),
+      removeEventListener: jest.fn(),
+    }));
+    window.scrollTo = jest.fn();
+    mockDemo.status = { guide_step: "forests" };
+    try {
+      const { rerender } = render(
+        <DisturbanceInvestigationPanel item={MOCK_EVIDENCE_ITEM} onInvestigate={jest.fn()} isDemo />
+      );
+      window.scrollTo.mockClear();
+      mockDemo.status = { guide_step: "changed" };
+      rerender(
+        <DisturbanceInvestigationPanel item={MOCK_EVIDENCE_ITEM} onInvestigate={jest.fn()} isDemo />
+      );
+      expect(window.scrollTo).not.toHaveBeenCalled();
+      mockDemo.status = { guide_step: "investigate" };
+      rerender(
+        <DisturbanceInvestigationPanel item={MOCK_EVIDENCE_ITEM} onInvestigate={jest.fn()} isDemo />
+      );
+      expect(window.scrollTo).toHaveBeenCalledWith(
+        expect.objectContaining({ behavior: "smooth" })
+      );
+    } finally {
+      mockDemo.status = { guide_step: "forests" };
+      window.matchMedia = originalMatchMedia;
+      window.scrollTo = originalScrollTo;
     }
   });
 });
